@@ -36,3 +36,12 @@
 - Agent tools: `permissions_diagnostic`, `send_whatsapp`, `read_whatsapp_notifications`, `compose_email`, `read_email_notifications`, `reply_notification` (RemoteInput, wearable actions included, no auto-reply), `operate_app`. `open_app` accepts a launcher label. Accessibility uses `typeAllMask`, `canTakeScreenshot`, child scroll, and long-press.
 - Gmail API OAuth is not in this release. The composer is the mail app the user already has.
 - No Telegram upload was run for this release. The existing CI step is unchanged.
+
+### Publish
+
+- Commit: `eb89bed` — Ship Dastyar 0.1.1 with restricted-settings help and app tools.
+- Annotated tag `v0.1.1` points at that commit.
+- Release: https://github.com/mohsenone/dastyar-android/releases/tag/v0.1.1
+- APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.1.1/app-release.apk (2,699,585 bytes, state uploaded). `aapt dump badging` reports `versionCode='2'` and `versionName='0.1.1'`, package `app.dastyar.agent`. `apksigner verify` succeeded with APK Signature Scheme v2 and certificate CN=Dastyar.
+- Unit tests before the signed assemble: `:feature:tools:testDebugUnitTest`, `:feature:agent:testDebugUnitTest`, `:core:network:testDebugUnitTest`.
+- Nothing was sent to Telegram from this machine. Pushing the tag starts `.github/workflows/release.yml`. That workflow’s Telegram step is unchanged and still skips when its secrets are unset. The locally signed APK was attached so the release is not empty while CI runs.
