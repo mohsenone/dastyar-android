@@ -22,3 +22,9 @@
 - Speech depends on the engines installed on the phone.
 - Exact alarms need the system grant on Android 12+. Otherwise the alarm is inexact, and if the OS blocks a background foreground-service start the app posts a notification to open Dastyar.
 - Screenshot, accessibility tap, and SMS confirmation need a physical device. This server has no emulator image.
+
+### Publish
+
+- Repository: https://github.com/mohsenone/dastyar-android
+- Release v0.1.0: https://github.com/mohsenone/dastyar-android/releases/tag/v0.1.0
+- Signing secrets are set on the repo. Telegram secrets are not set, so that job warns and skips.
