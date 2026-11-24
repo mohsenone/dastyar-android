@@ -17,9 +17,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.outlined.Key
@@ -46,15 +51,18 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import app.dastyar.agent.chat.ChatScreen
 import app.dastyar.agent.chat.ChatViewModel
 import app.dastyar.agent.data.SettingsStore
@@ -64,9 +72,11 @@ import app.dastyar.agent.settings.AuditScreen
 import app.dastyar.agent.settings.DisclosureScreen
 import app.dastyar.agent.settings.MemoriesScreen
 import app.dastyar.agent.settings.OnboardingScreen
+import app.dastyar.agent.settings.PermissionsScreen
 import app.dastyar.agent.settings.RoutinesScreen
 import app.dastyar.agent.settings.SettingsScreen
 import app.dastyar.agent.settings.SettingsViewModel
+import app.dastyar.agent.tools.RestrictedSettings
 import app.dastyar.agent.tools.RiskLevel
 import app.dastyar.agent.ui.ConfirmPanel
 import app.dastyar.agent.ui.DastyarTheme
@@ -190,11 +200,36 @@ class MainActivity : AppCompatActivity() {
                 val dirReply = remember { androidx.compose.runtime.mutableStateOf<CompletableDeferred<String?>?>(null) }
                 val docReply = remember { androidx.compose.runtime.mutableStateOf<CompletableDeferred<String?>?>(null) }
                 val permReply = remember { androidx.compose.runtime.mutableStateOf<CompletableDeferred<Boolean>?>(null) }
+                var restrictedHelp by remember { mutableStateOf(false) }
+                val epoch by ui.resumeEpoch.collectAsStateWithLifecycle()
 
-                val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-                    permReply.value?.complete(result.values.all { it })
+                fun finishPerm(ok: Boolean) {
+                    val reply = permReply.value ?: return
                     permReply.value = null
                     perm = null
+                    restrictedHelp = false
+                    reply.complete(ok)
+                }
+
+                val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+                    val ok = result.isNotEmpty() && result.values.all { it }
+                    if (ok) {
+                        finishPerm(true)
+                    } else if (RestrictedSettings.applies(Build.VERSION.SDK_INT) && RestrictedSettings.touchesRuntime(permNeeded)) {
+                        restrictedHelp = true
+                    } else {
+                        finishPerm(false)
+                    }
+                }
+                LaunchedEffect(epoch, restrictedHelp) {
+                    if (!restrictedHelp) return@LaunchedEffect
+                    val reply = permReply.value ?: return@LaunchedEffect
+                    if (reply.isCompleted) return@LaunchedEffect
+                    val still = permNeeded.filter { permission ->
+                        ContextCompat.checkSelfPermission(this@MainActivity, permission) !=
+                            android.content.pm.PackageManager.PERMISSION_GRANTED
+                    }
+                    if (still.isEmpty()) finishPerm(true)
                 }
                 val photoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
                     val reply = photoReply.value
@@ -273,9 +308,11 @@ class MainActivity : AppCompatActivity() {
                                 } else {
                                     permNeeded = needed
                                     permReply.value = request.reply
+                                    restrictedHelp = false
                                     perm = request
                                     request.reply.await()
                                     perm = null
+                                    restrictedHelp = false
                                 }
                             }
                             is UiRequest.Photo -> {
@@ -339,6 +376,7 @@ class MainActivity : AppCompatActivity() {
                             OnboardingScreen(
                                 vm = settingsVm,
                                 onLanguage = ::applyLanguage,
+                                onPermissions = { nav.navigate("permissions?onboarding=1") },
                                 onDone = { providers ->
                                     Bootstrap.writeOnboarding(this@MainActivity, true)
                                     scope.launch {
@@ -397,16 +435,136 @@ class MainActivity : AppCompatActivity() {
                                 onAudit = { nav.navigate("audit") },
                                 onMemories = { nav.navigate("memories") },
                                 onDisclosure = { nav.navigate("disclosure") },
+                                onPermissions = { nav.navigate("permissions?onboarding=0") },
                                 onPickFolder = {
                                     scope.launch { ui.pickDirectory() }
                                 },
-                                onOpenA11y = ui::openAccessibilitySettings,
-                                onOpenNotifications = ui::openNotificationListenerSettings,
-                                onOpenOverlay = ui::openOverlaySettings,
-                                onOpenAllFiles = ui::openAllFilesSettings,
-                                onOpenExactAlarm = ui::openExactAlarmSettings,
-                                onOpenBattery = ui::openBatterySettings,
-                                onOpenAppSettings = ui::openAppSettings,
+                            )
+                        }
+                        composable(
+                            "permissions?onboarding={onboarding}",
+                            arguments = listOf(navArgument("onboarding") { type = NavType.StringType; defaultValue = "0" }),
+                        ) { entry ->
+                            val fromOnboarding = entry.arguments?.getString("onboarding") == "1"
+                            PermissionsScreen(
+                                lang = lang,
+                                safGranted = !settings.safTreeUri.isNullOrBlank(),
+                                showOnboardingChoices = fromOnboarding,
+                                onAppInfo = ui::openAppSettings,
+                                onProviders = {
+                                    settingsVm.finishOnboarding()
+                                    Bootstrap.writeOnboarding(this@MainActivity, true)
+                                    scope.launch {
+                                        if (Build.VERSION.SDK_INT >= 33) {
+                                            ui.ensurePermissions(
+                                                listOf(Manifest.permission.POST_NOTIFICATIONS),
+                                                t(lang, "برای نشان دادن کار دستیار در پس‌زمینه اعلان لازم است.", "Notifications are how you see Dastyar working in the background."),
+                                            )
+                                        }
+                                        nav.navigate("providers") { popUpTo("onboarding") { inclusive = true } }
+                                    }
+                                },
+                                onChat = {
+                                    settingsVm.finishOnboarding()
+                                    Bootstrap.writeOnboarding(this@MainActivity, true)
+                                    scope.launch {
+                                        if (Build.VERSION.SDK_INT >= 33) {
+                                            ui.ensurePermissions(
+                                                listOf(Manifest.permission.POST_NOTIFICATIONS),
+                                                t(lang, "برای نشان دادن کار دستیار در پس‌زمینه اعلان لازم است.", "Notifications are how you see Dastyar working in the background."),
+                                            )
+                                        }
+                                        nav.navigate("chat") { popUpTo("onboarding") { inclusive = true } }
+                                    }
+                                },
+                                onAction = { id ->
+                                    when (id) {
+                                        "notifications" -> if (Build.VERSION.SDK_INT >= 33) {
+                                            scope.launch {
+                                                ui.ensurePermissions(
+                                                    listOf(Manifest.permission.POST_NOTIFICATIONS),
+                                                    t(lang, "اعلان، وضعیت دستیار را نشان می‌دهد.", "Notifications show what Dastyar is doing."),
+                                                )
+                                            }
+                                        }
+                                        "sms" -> scope.launch {
+                                            ui.ensurePermissions(
+                                                listOf(
+                                                    Manifest.permission.READ_SMS,
+                                                    Manifest.permission.SEND_SMS,
+                                                    Manifest.permission.RECEIVE_SMS,
+                                                    Manifest.permission.RECEIVE_MMS,
+                                                    Manifest.permission.RECEIVE_WAP_PUSH,
+                                                ),
+                                                t(lang, "پیامک برای خواندن و فرستادن است. هر ارسال جدا تأیید می‌شود. اگر گفتگو فوراً بسته شد، اجازه به تنظیمات محدود لازم است.", "SMS is for reading and sending. Each send is confirmed on its own. If the dialog closes at once, allow restricted settings."),
+                                            )
+                                        }
+                                        "contacts" -> scope.launch {
+                                            ui.ensurePermissions(
+                                                listOf(Manifest.permission.READ_CONTACTS, Manifest.permission.WRITE_CONTACTS),
+                                                t(lang, "مخاطبین برای جستجو و افزودن شماره است.", "Contacts are for search and for saving a number."),
+                                            )
+                                        }
+                                        "call_phone" -> scope.launch {
+                                            ui.ensurePermissions(
+                                                listOf(Manifest.permission.CALL_PHONE),
+                                                t(lang, "تماس مستقیم فقط بعد از تأیید شما انجام می‌شود.", "A direct call happens only after you confirm."),
+                                            )
+                                        }
+                                        "call_log" -> scope.launch {
+                                            ui.ensurePermissions(
+                                                listOf(Manifest.permission.READ_CALL_LOG),
+                                                t(lang, "گزارش تماس برای دیدن تماس‌های اخیر است. اگر گفتگو فوراً بسته شد، اجازه به تنظیمات محدود لازم است.", "Call log reads recent calls. If the dialog closes at once, allow restricted settings."),
+                                            )
+                                        }
+                                        "calendar" -> scope.launch {
+                                            ui.ensurePermissions(
+                                                listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
+                                                t(lang, "تقویم برای دیدن و ساختن رویداد است.", "Calendar is for reading and creating events."),
+                                            )
+                                        }
+                                        "camera" -> scope.launch {
+                                            ui.ensurePermissions(
+                                                listOf(Manifest.permission.CAMERA),
+                                                t(lang, "دوربین فقط برای عکس یا ویدیویی است که خودتان می‌گیرید.", "The camera is only for a photo or video you take."),
+                                            )
+                                        }
+                                        "microphone" -> scope.launch {
+                                            ui.ensurePermissions(
+                                                listOf(Manifest.permission.RECORD_AUDIO),
+                                                t(lang, "میکروفون برای شنیدن صدای شماست.", "The microphone is for hearing you."),
+                                            )
+                                        }
+                                        "location" -> scope.launch {
+                                            ui.ensurePermissions(
+                                                listOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION),
+                                                t(lang, "موقعیت فقط وقتی یک ابزار بخواهد خوانده می‌شود.", "Location is read only when a tool asks."),
+                                            )
+                                        }
+                                        "background_location" -> if (Build.VERSION.SDK_INT >= 29) {
+                                            scope.launch {
+                                                ui.ensurePermissions(
+                                                    listOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                                                    t(lang, "موقعیت پس‌زمینه جدا است و می‌توانید رد کنید.", "Background location is separate, and you can deny it."),
+                                                )
+                                            }
+                                        }
+                                        "phone_state" -> scope.launch {
+                                            ui.ensurePermissions(
+                                                listOf(Manifest.permission.READ_PHONE_STATE),
+                                                t(lang, "وضعیت تلفن برای ابزارهایی است که وضعیت خط را می‌خواهند.", "Phone state is for tools that need the line status."),
+                                            )
+                                        }
+                                        "accessibility" -> nav.navigate("disclosure")
+                                        "notification_listener" -> ui.openNotificationListenerSettings()
+                                        "overlay" -> ui.openOverlaySettings()
+                                        "all_files" -> ui.openAllFilesSettings()
+                                        "saf" -> scope.launch { ui.pickDirectory() }
+                                        "exact_alarm" -> ui.openExactAlarmSettings()
+                                        "usage_stats" -> ui.openUsageAccessSettings()
+                                        "battery" -> ui.openBatterySettings()
+                                    }
+                                },
                             )
                         }
                         composable("audit") {
@@ -441,7 +599,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 perm?.let { request ->
                     AlertDialog(
-                        onDismissRequest = { request.reply.complete(false) },
+                        onDismissRequest = { finishPerm(false) },
                         title = { Text(t(lang, "اجازه", "Permission")) },
                         text = { Text(request.rationale) },
                         confirmButton = {
@@ -452,7 +610,29 @@ class MainActivity : AppCompatActivity() {
                             }) { Text(t(lang, "ادامه", "Continue")) }
                         },
                         dismissButton = {
-                            TextButton(onClick = { request.reply.complete(false) }) { Text(t(lang, "رد", "Deny")) }
+                            TextButton(onClick = { finishPerm(false) }) { Text(t(lang, "رد", "Deny")) }
+                        },
+                    )
+                }
+                if (restrictedHelp) {
+                    AlertDialog(
+                        onDismissRequest = { finishPerm(false) },
+                        title = { Text(t(lang, "تنظیمات محدود", "Restricted settings")) },
+                        text = {
+                            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                                Text(RestrictedSettings.guide(lang))
+                                TextButton(onClick = ui::openAppSettings, modifier = Modifier.fillMaxWidth()) {
+                                    Text(t(lang, "باز کردن اطلاعات برنامه", "Open app info"))
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { permissionLauncher.launch(permNeeded.toTypedArray()) }) {
+                                Text(t(lang, "دوباره تلاش کن", "Try again"))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { finishPerm(false) }) { Text(t(lang, "الان نه", "Not now")) }
                         },
                     )
                 }

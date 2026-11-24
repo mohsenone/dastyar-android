@@ -369,6 +369,10 @@ class AgentLoop @Inject constructor(
             val method = runCatching { JSONObject(call.arguments.ifBlank { "{}" }).optString("method", "GET") }.getOrDefault("GET")
             if (!method.equals("GET", true)) return RiskLevel.DANGEROUS
         }
+        if (call.name == "compose_email") {
+            val tap = runCatching { JSONObject(call.arguments.ifBlank { "{}" }).optBoolean("tap_send") }.getOrDefault(false)
+            if (tap) return RiskLevel.DANGEROUS
+        }
         return base
     }
 
@@ -408,6 +412,9 @@ class AgentLoop @Inject constructor(
             You are not ChatGPT, Claude, Grok, Muse, or any company's official client.
             UI language: $lang. Answer in Persian if the UI language is fa, and in English if it is en, unless the user writes in the other language.
             Tools can read and change the phone: messages, calls, calendar, files, camera, location, notifications, and other apps through accessibility after the user confirms.
+            When SMS, WhatsApp, Gmail, accessibility, or notification access fails, call permissions_diagnostic and tell the user the next step in their language. On Android 13 and later, a sideloaded install needs Allow restricted settings (App info, three-dot menu) before SMS, call log, accessibility, and notification access will stick.
+            WhatsApp: send_whatsapp confirms the number and the full text. reply_notification answers a notification that already has a reply box. Email: compose_email opens Gmail or another mail app. There is no Gmail account login in this version. Read mail and chats from their notifications or from read_screen while that app is open.
+            operate_app opens an app by package or by its Persian or English launcher name, then runs confirmed taps, long-presses, typing, and scrolls. accessibility_action is the same step list when the app is already open.
             Never claim a tool ran unless its result is in the conversation. If a tool fails, say so.
             Do not ask for or repeat API keys. Saved facts:
             $facts

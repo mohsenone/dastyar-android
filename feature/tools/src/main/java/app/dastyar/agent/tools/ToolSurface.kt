@@ -75,9 +75,11 @@ object Redaction {
     private val digits = Regex("\\b\\d{4,8}\\b")
     private val secret = Regex("(?i)(sk-[A-Za-z0-9_\\-]{6,}|bearer\\s+[A-Za-z0-9._\\-]{8,})")
 
+    fun isSensitive(pkg: String, title: String, text: String): Boolean =
+        pkg.contains("bank", true) || pkg.contains("otp", true) || otpContext.containsMatchIn("$title $text")
+
     fun notification(pkg: String, title: String, text: String): String {
-        val sensitive = pkg.contains("bank", true) || pkg.contains("otp", true) || otpContext.containsMatchIn("$title $text")
-        val body = if (sensitive) digits.replace(text, "••••") else text
+        val body = if (isSensitive(pkg, title, text)) digits.replace(text, "••••") else text
         return secret.replace("$pkg | $title | $body", "••••").take(400)
     }
 

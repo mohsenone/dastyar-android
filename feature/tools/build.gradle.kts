@@ -41,4 +41,6 @@ dependencies {
     implementation(project(":core:security"))
     implementation(project(":core:ui"))
     implementation(libs.okhttp)
+    testImplementation(libs.junit)
+    testImplementation(libs.json)
 }

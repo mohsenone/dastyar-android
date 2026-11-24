@@ -13,6 +13,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -45,9 +46,11 @@ class AppUiBridge @Inject constructor(
     private val resumed = AtomicBoolean(false)
     private val outgoing = MutableSharedFlow<UiRequest>(extraBufferCapacity = 8)
     val requests = outgoing.asSharedFlow()
+    val resumeEpoch = MutableStateFlow(0)
 
     fun setResumed(value: Boolean) {
         resumed.set(value)
+        if (value) resumeEpoch.value = resumeEpoch.value + 1
     }
 
     override suspend fun ensurePermissions(permissions: List<String>, rationale: String): Boolean {

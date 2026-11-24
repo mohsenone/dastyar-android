@@ -28,3 +28,11 @@
 - Repository: https://github.com/mohsenone/dastyar-android
 - Release v0.1.0: https://github.com/mohsenone/dastyar-android/releases/tag/v0.1.0
 - Signing secrets are set on the repo. Telegram secrets are not set, so that job warns and skips.
+
+## 2026-11-24 — v0.1.1
+
+- Root cause of the sideload reports: Android 13+ blocks Accessibility, notification listener, SMS, and call log until the user allows restricted settings. v0.1.0 never detected that and answered with “Permission denied”.
+- v0.1.1 (`versionCode` 2) adds the Permissions screen (Persian and English steps), a restricted-settings dialog after a blocked SMS/call-log grant, `RECEIVE_SMS` / `RECEIVE_MMS` / `RECEIVE_WAP_PUSH`, and package queries for WhatsApp and Gmail.
+- Agent tools: `permissions_diagnostic`, `send_whatsapp`, `read_whatsapp_notifications`, `compose_email`, `read_email_notifications`, `reply_notification` (RemoteInput, wearable actions included, no auto-reply), `operate_app`. `open_app` accepts a launcher label. Accessibility uses `typeAllMask`, `canTakeScreenshot`, child scroll, and long-press.
+- Gmail API OAuth is not in this release. The composer is the mail app the user already has.
+- No Telegram upload was run for this release. The existing CI step is unchanged.

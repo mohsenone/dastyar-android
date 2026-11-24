@@ -12,6 +12,17 @@ Download the signed APK from [GitHub Releases](https://github.com/mohsenone/dast
 
 Android will ask you to allow installs from the browser or file manager. After install, open Dastyar. The first screen is Persian. Switch to English there, or later in Settings. Layout direction follows the language.
 
+On Android 13 and later, a sideloaded APK cannot turn on Accessibility, notification access, SMS, or call log until you allow restricted settings. There is no button the app can press for you. Dastyar’s Permissions screen (end of the intro, and again in Settings) shows the live state of each grant and this path:
+
+1. Try once to grant SMS or turn Accessibility on. The system may refuse or grey out the switch. That is expected.
+2. Tap **Open app info** (or Settings → Apps → Dastyar).
+3. Open the **⋮** menu in the top corner.
+4. Choose **Allow restricted settings**. The label depends on the phone language.
+5. Return to Permissions and turn on SMS, Accessibility (after the disclosure), and notification access.
+6. On Android 15 the ⋮ item can stay hidden until you try the blocked switch once more.
+
+Official Gmail API sign-in is not in this version. Mail opens in Gmail or another email app. WhatsApp opens through `wa.me`. Sending still asks you first.
+
 ## Add a key
 
 Free or trial options are on the first Providers tab. Paid keys are on the second. Every limit line is dated **24 Nov 2026 (3 Azar 1405)**. Check the official page again before you rely on a number.
@@ -38,7 +49,7 @@ Official hosts are often unreachable. Add **Custom / Proxy**, set the base URL o
 
 ## Permissions
 
-Permissions are requested when a tool needs them, with a short explanation. Deny means the tool returns an error. It does not crash.
+Permissions are requested when a tool needs them, or from the Permissions screen, with a short explanation. Deny means the tool returns an error and, on Android 13+, the restricted-settings steps when that is the likely cause. It does not crash.
 
 - Notifications: a listener can read what is already on the shade. One-time codes and banking-looking texts are redacted before they reach the model. Dismissing a notification asks first.
 - SMS send and phone calls show the recipient and the body, and wait for **Do it**.
@@ -68,7 +79,7 @@ sdk.dir=/path/to/android-sdk
 
 ```
 ./gradlew :app:assembleDebug
-./gradlew :core:network:testDebugUnitTest :feature:agent:testDebugUnitTest
+./gradlew :core:network:testDebugUnitTest :feature:agent:testDebugUnitTest :feature:tools:testDebugUnitTest
 ```
 
 A signed release needs these environment variables and a keystore that is **not** in git:
@@ -104,7 +115,7 @@ These need a phone. An emulator is not required to compile.
 2. Add a Groq, OpenRouter, Gemini, or custom base URL, test the connection, and send a chat. Tokens should stream.
 3. Ask for a calendar event and confirm the sheet before it is written.
 4. Ask to send an SMS and confirm the number and the full body.
-5. Grant notification access and ask what notifications are showing.
+5. Grant notification access and ask what notifications are showing. On Android 13+, if the toggle is grey, follow Allow restricted settings, then retry. Ask the assistant to run `permissions_diagnostic`.
 6. Ask for a screenshot. Android shows the MediaProjection consent. Confirm again before the image is sent.
 7. Ask to open a URL. The browser opens and the address is visible.
 8. Accessibility: after the disclosure, enable the service. Open a notes app, ask Dastyar to read the screen, then ask for one tap on a button you name. Confirm the sheet. The audit log should show `read_screen` and `accessibility_action`.

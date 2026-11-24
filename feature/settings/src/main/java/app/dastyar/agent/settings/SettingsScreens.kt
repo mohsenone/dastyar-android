@@ -34,13 +34,18 @@ import app.dastyar.agent.ui.t
 import kotlinx.coroutines.launch
 
 @Composable
-fun OnboardingScreen(vm: SettingsViewModel, onDone: (openProviders: Boolean) -> Unit, onLanguage: (String) -> Unit) {
+fun OnboardingScreen(
+    vm: SettingsViewModel,
+    onDone: (openProviders: Boolean) -> Unit,
+    onLanguage: (String) -> Unit,
+    onPermissions: () -> Unit,
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
     var page by remember { mutableStateOf(0) }
     val pages = listOf(
         t(lang, "دستیار روی خود گوشی کار می‌کند. کلید را شما می‌آورید. سرور دستیار کلید، پیامک یا فایل شما را نمی‌بیند.", "Dastyar runs on this phone. You bring the key. No Dastyar server sees your key, messages, or files."),
-        t(lang, "اعلان، پیامک، تماس، تقویم، فایل، دوربین، موقعیت و برنامه‌های دیگر فقط بعد از اجازهٔ شما در دسترس‌اند.", "Notifications, SMS, calls, calendar, files, camera, location, and other apps are available only after you allow them."),
+        t(lang, "اعلان، پیامک، تماس، تقویم، فایل، دوربین، موقعیت و برنامه‌های دیگر فقط بعد از اجازهٔ شما در دسترس‌اند. اگر برنامه را از بیرون فروشگاه نصب کرده‌اید، در اندروید ۱۳ و جدیدتر اول «اجازه به تنظیمات محدود» را در اطلاعات برنامه روشن کنید.", "Notifications, SMS, calls, calendar, files, camera, location, and other apps are available only after you allow them. If you installed from outside the store, on Android 13 and later allow restricted settings in App info first."),
         t(lang, "فرستادن پیامک، تماس، پاک کردن فایل، یا لمس برنامهٔ دیگر همیشه دکمهٔ تأیید می‌خواهد. از اعلان یا تنظیمات می‌توانید همهٔ ابزارها را متوقف کنید.", "Sending a text, placing a call, deleting a file, or tapping another app always needs a confirm button. Pause every tool from the notification or from Settings."),
     )
     Column(
@@ -60,6 +65,9 @@ fun OnboardingScreen(vm: SettingsViewModel, onDone: (openProviders: Boolean) -> 
                 Button(onClick = { page += 1 }) { Text(t(lang, "بعدی", "Next")) }
             }
         }
+        Button(onClick = onPermissions, modifier = Modifier.fillMaxWidth()) {
+            Text(t(lang, "اجازه‌ها و تنظیمات محدود", "Permissions and restricted settings"))
+        }
         Button(onClick = { vm.finishOnboarding(); onDone(true) }, modifier = Modifier.fillMaxWidth()) {
             Text(t(lang, "افزودن یک کلید رایگان", "Add a free key"))
         }
@@ -76,14 +84,8 @@ fun SettingsScreen(
     onAudit: () -> Unit,
     onMemories: () -> Unit,
     onDisclosure: () -> Unit,
+    onPermissions: () -> Unit,
     onPickFolder: () -> Unit,
-    onOpenA11y: () -> Unit,
-    onOpenNotifications: () -> Unit,
-    onOpenOverlay: () -> Unit,
-    onOpenAllFiles: () -> Unit,
-    onOpenExactAlarm: () -> Unit,
-    onOpenBattery: () -> Unit,
-    onOpenAppSettings: () -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
@@ -114,23 +116,19 @@ fun SettingsScreen(
             }
             Switch(checked = state.biometric, onCheckedChange = vm::setBiometric)
         }
+        Button(onClick = onPermissions, modifier = Modifier.fillMaxWidth()) {
+            Text(t(lang, "اجازه‌ها و تنظیمات محدود", "Permissions and restricted settings"))
+        }
         Button(onClick = onProviders, modifier = Modifier.fillMaxWidth()) { Text(t(lang, "ارائه‌دهندگان", "Providers")) }
         OutlinedButton(onClick = onDisclosure, modifier = Modifier.fillMaxWidth()) {
             Text(t(lang, "دسترس‌پذیری و افشا", "Accessibility disclosure"))
         }
-        OutlinedButton(onClick = onOpenA11y, modifier = Modifier.fillMaxWidth()) { Text(t(lang, "تنظیمات دسترس‌پذیری سیستم", "System accessibility settings")) }
-        OutlinedButton(onClick = onOpenNotifications, modifier = Modifier.fillMaxWidth()) { Text(t(lang, "شنیدن اعلان‌ها", "Notification access")) }
-        OutlinedButton(onClick = onOpenOverlay, modifier = Modifier.fillMaxWidth()) { Text(t(lang, "نمایش روی برنامه‌ها", "Draw over other apps")) }
-        OutlinedButton(onClick = onOpenAllFiles, modifier = Modifier.fillMaxWidth()) { Text(t(lang, "دسترسی به همهٔ فایل‌ها", "All-files access")) }
         OutlinedButton(onClick = onPickFolder, modifier = Modifier.fillMaxWidth()) {
             Text(t(lang, "انتخاب پوشه (SAF)", "Choose a folder (SAF)"))
         }
         if (!state.saf.isNullOrBlank()) {
             Text(t(lang, "پوشه ذخیره شد.", "A folder is saved."), style = MaterialTheme.typography.bodySmall)
         }
-        OutlinedButton(onClick = onOpenExactAlarm, modifier = Modifier.fillMaxWidth()) { Text(t(lang, "زنگ دقیق", "Exact alarms")) }
-        OutlinedButton(onClick = onOpenBattery, modifier = Modifier.fillMaxWidth()) { Text(t(lang, "باتری", "Battery")) }
-        OutlinedButton(onClick = onOpenAppSettings, modifier = Modifier.fillMaxWidth()) { Text(t(lang, "اجازه‌های برنامه", "App permissions")) }
         OutlinedTextField(
             value = state.allowlist,
             onValueChange = vm::setAllowlist,

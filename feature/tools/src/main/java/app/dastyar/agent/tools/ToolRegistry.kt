@@ -40,6 +40,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -66,9 +67,15 @@ class ToolRegistry @Inject constructor(
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    private val apps = AppActions(context)
+
     private val tools: List<Registered> = buildList {
         add(device())
+        add(permissionsDiagnostic())
         add(listNotifications())
+        add(readWhatsAppNotifications())
+        add(readEmailNotifications())
+        add(replyNotification())
         add(dismissNotification())
         add(readSms())
         add(sendSms())
@@ -91,9 +98,12 @@ class ToolRegistry @Inject constructor(
         add(captureScreen())
         add(readScreen())
         add(a11yAction())
+        add(operateApp())
         add(webFetch())
         add(openUrl())
         add(openApp())
+        add(sendWhatsApp())
+        add(composeEmail())
         add(shareText())
         add(clipboardRead())
         add(clipboardWrite())
@@ -124,7 +134,14 @@ class ToolRegistry @Inject constructor(
         return try {
             tool.run(jsonArgs(argsJson), ctx)
         } catch (error: SecurityException) {
-            ToolResult(false, "Permission denied")
+            ToolResult(
+                false,
+                bi(
+                    ctx.lang,
+                    "اجازه داده نشد. اگر پیامک، گزارش تماس، دسترس‌پذیری یا اعلان است، permissions_diagnostic را بخوانید و اجازه به تنظیمات محدود را انجام دهید.",
+                    "Permission denied. If this was SMS, call log, accessibility, or notifications, call permissions_diagnostic and allow restricted settings.",
+                ),
+            )
         } catch (error: Exception) {
             ToolResult(false, (error.message ?: error.javaClass.simpleName).take(400))
         }
@@ -147,18 +164,18 @@ class ToolRegistry @Inject constructor(
             caps == null -> "offline"
             else -> "other"
         }
-        val apps = launcherApps().take(40).joinToString("\n") { "${it.first} (${it.second})" }
+        val listed = apps.launcherApps().take(40).joinToString("\n") { "${it.first} (${it.second})" }
         val foreground = foregroundApp()
         ToolResult(
             true,
             "model=${Build.MODEL}; sdk=${Build.VERSION.SDK_INT}; battery=$battery%; network=$net; " +
-                "locale=${java.util.Locale.getDefault()}; time=${System.currentTimeMillis()}; foreground=$foreground\n$apps",
+                "locale=${java.util.Locale.getDefault()}; time=${System.currentTimeMillis()}; foreground=$foreground\n$listed",
         )
     }
 
     private fun listNotifications() = tool(
         name = "list_notifications",
-        description = "List active notifications. One-time codes and banking text are redacted.",
+        description = "List active notifications the user can already see. One-time codes and banking text are redacted. Each row includes the package and reply=yes when a notification reply field exists. Use reply_notification to answer one after the user confirms.",
         schema = obj(),
         risk = RiskLevel.SAFE,
         confirm = { _, lang -> bi(lang, "خواندن اعلان‌ها", "Read notifications") },
@@ -168,7 +185,7 @@ class ToolRegistry @Inject constructor(
         }
         val rows = DastyarNotificationListener.instance?.snapshot().orEmpty()
         if (rows.isEmpty()) return@tool ToolResult(true, bi(ctx.lang, "اعلانی نیست.", "No active notifications."))
-        ToolResult(true, rows.joinToString("\n") { "${it.key} :: ${it.summary}" })
+        ToolResult(true, rows.joinToString("\n") { "${it.key} :: ${it.packageName} :: reply=${if (it.canReply) "yes" else "no"} :: ${it.summary}" })
     }
 
     private fun dismissNotification() = tool(
@@ -191,11 +208,11 @@ class ToolRegistry @Inject constructor(
         risk = RiskLevel.CONFIRM,
         confirm = { _, lang -> bi(lang, "خواندن پیامک‌های اخیر", "Read recent SMS messages") },
     ) { args, ctx ->
-        val granted = ui.ensurePermissions(
-            listOf(Manifest.permission.READ_SMS),
-            bi(ctx.lang, "برای خواندن صندوق پیامک به اجازه نیاز است.", "Dastyar needs permission to read SMS."),
-        )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        requireGrant(
+            ctx,
+            listOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS),
+            bi(ctx.lang, "برای خواندن صندوق پیامک به اجازه نیاز است. اگر نصب از بیرون فروشگاه است و گفتگو فوراً رد شد، اجازه به تنظیمات محدود لازم است.", "Dastyar needs permission to read SMS. If this install is from outside the store and the dialog closes at once, allow restricted settings."),
+        )?.let { return@tool it }
         val limit = args.optInt("limit", 15).coerceIn(1, 30)
         val rows = mutableListOf<String>()
         context.contentResolver.query(
@@ -231,11 +248,11 @@ class ToolRegistry @Inject constructor(
         val to = args.optString("to").trim()
         val body = args.optString("body")
         if (to.isBlank() || body.isBlank()) return@tool ToolResult(false, "Recipient and body are required")
-        val granted = ui.ensurePermissions(
-            listOf(Manifest.permission.SEND_SMS),
-            bi(ctx.lang, "برای ارسال پیامک به اجازه نیاز است.", "Dastyar needs permission to send SMS."),
-        )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        requireGrant(
+            ctx,
+            listOf(Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS),
+            bi(ctx.lang, "برای ارسال پیامک به اجازه نیاز است. اگر نصب از بیرون فروشگاه است و گفتگو فوراً رد شد، اجازه به تنظیمات محدود لازم است.", "Dastyar needs permission to send SMS. If this install is from outside the store and the dialog closes at once, allow restricted settings."),
+        )?.let { return@tool it }
         val sms = if (Build.VERSION.SDK_INT >= 31) {
             context.getSystemService(SmsManager::class.java)
         } else {
@@ -271,11 +288,11 @@ class ToolRegistry @Inject constructor(
     ) { args, ctx ->
         val number = args.optString("number").trim()
         if (number.isBlank()) return@tool ToolResult(false, "Missing number")
-        val granted = ui.ensurePermissions(
+        requireGrant(
+            ctx,
             listOf(Manifest.permission.CALL_PHONE),
             bi(ctx.lang, "برای تماس مستقیم به اجازه نیاز است.", "Dastyar needs permission to place a call."),
-        )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        )?.let { return@tool it }
         val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:${Uri.encode(number)}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
         ToolResult(true, "Call started")
@@ -288,11 +305,11 @@ class ToolRegistry @Inject constructor(
         risk = RiskLevel.CONFIRM,
         confirm = { _, lang -> bi(lang, "خواندن گزارش تماس", "Read the call log") },
     ) { args, ctx ->
-        val granted = ui.ensurePermissions(
+        requireGrant(
+            ctx,
             listOf(Manifest.permission.READ_CALL_LOG),
-            bi(ctx.lang, "برای خواندن گزارش تماس به اجازه نیاز است.", "Dastyar needs permission to read the call log."),
-        )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+            bi(ctx.lang, "برای خواندن گزارش تماس به اجازه نیاز است. اگر نصب از بیرون فروشگاه است و گفتگو فوراً رد شد، اجازه به تنظیمات محدود لازم است.", "Dastyar needs permission to read the call log. If this install is from outside the store and the dialog closes at once, allow restricted settings."),
+        )?.let { return@tool it }
         val limit = args.optInt("limit", 15).coerceIn(1, 30)
         val rows = mutableListOf<String>()
         context.contentResolver.query(
@@ -320,7 +337,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.READ_CONTACTS),
             bi(ctx.lang, "برای جستجوی مخاطبین به اجازه نیاز است.", "Dastyar needs permission to read contacts."),
         )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        if (!granted) return@tool deny(ctx.lang)
         val query = args.optString("query").trim()
         val uri = if (query.isBlank()) {
             ContactsContract.CommonDataKinds.Phone.CONTENT_URI
@@ -358,7 +375,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.WRITE_CONTACTS, Manifest.permission.READ_CONTACTS),
             bi(ctx.lang, "برای نوشتن مخاطب به اجازه نیاز است.", "Dastyar needs permission to write a contact."),
         )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        if (!granted) return@tool deny(ctx.lang)
         val name = args.optString("name").trim()
         val phone = args.optString("phone").trim()
         if (name.isBlank()) return@tool ToolResult(false, "Missing name")
@@ -395,7 +412,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.READ_CALENDAR),
             bi(ctx.lang, "برای خواندن تقویم به اجازه نیاز است.", "Dastyar needs permission to read the calendar."),
         )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        if (!granted) return@tool deny(ctx.lang)
         val days = args.optInt("days", 14).coerceIn(1, 60)
         val start = System.currentTimeMillis()
         val end = start + days * 24L * 3600_000L
@@ -431,7 +448,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
             bi(ctx.lang, "برای نوشتن تقویم به اجازه نیاز است.", "Dastyar needs permission to write the calendar."),
         )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        if (!granted) return@tool deny(ctx.lang)
         val title = args.optString("title").trim()
         val start = args.optLong("startMillis")
         if (title.isBlank() || start <= 0L) return@tool ToolResult(false, "Title and startMillis are required")
@@ -460,7 +477,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.WRITE_CALENDAR),
             bi(ctx.lang, "برای حذف رویداد به اجازه نیاز است.", "Dastyar needs permission to delete a calendar event."),
         )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        if (!granted) return@tool deny(ctx.lang)
         val id = args.optLong("eventId")
         val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id)
         val rows = context.contentResolver.delete(uri, null, null)
@@ -548,7 +565,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.CAMERA),
             bi(ctx.lang, "برای دوربین به اجازه نیاز است.", "Dastyar needs the camera."),
         )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        if (!granted) return@tool deny(ctx.lang)
         val path = ui.takePhoto() ?: return@tool ToolResult(false, "Camera cancelled")
         val send = ui.confirmImage(
             path,
@@ -573,7 +590,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.CAMERA),
             bi(ctx.lang, "برای دوربین به اجازه نیاز است.", "Dastyar needs the camera."),
         )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        if (!granted) return@tool deny(ctx.lang)
         val path = ui.captureVideo() ?: return@tool ToolResult(false, "Video cancelled")
         ToolResult(true, "Video saved at $path")
     }
@@ -595,7 +612,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION),
             bi(ctx.lang, "برای موقعیت به اجازه نیاز است.", "Dastyar needs location permission."),
         )
-        if (!granted) return@tool ToolResult(false, "Permission denied")
+        if (!granted) return@tool deny(ctx.lang)
         if (args.optBoolean("background")) {
             val bg = if (Build.VERSION.SDK_INT >= 29) {
                 ui.ensurePermissions(
@@ -605,7 +622,7 @@ class ToolRegistry @Inject constructor(
             } else {
                 true
             }
-            if (!bg) return@tool ToolResult(false, "Background location was not granted")
+            if (!bg) return@tool deny(ctx.lang)
         }
         val fix = withTimeoutOrNull(15_000) { currentLocation() } ?: "Location timed out"
         ToolResult(true, fix)
@@ -634,20 +651,20 @@ class ToolRegistry @Inject constructor(
 
     private fun readScreen() = tool(
         name = "read_screen",
-        description = "Read visible text from the current window using the accessibility service.",
+        description = "Read the current window through accessibility: text, view ids, and whether a node is clickable or editable. Use this for WhatsApp, Gmail, or any app in the foreground. Does not tap.",
         schema = obj(),
         risk = RiskLevel.CONFIRM,
         confirm = { _, lang -> bi(lang, "خواندن متن صفحه. ممکن است اطلاعات حساس باشد.", "Read on-screen text. It may include sensitive content.") },
     ) { _, ctx ->
         val service = DastyarAccessibilityService.instance
-            ?: return@tool ToolResult(false, bi(ctx.lang, "دسترس‌پذیری خاموش است. از تنظیمات دستیار و صفحهٔ توضیح آن را روشن کنید.", "Accessibility is off. Enable it from Dastyar settings after the disclosure."))
+            ?: return@tool ToolResult(false, accessibilityOff(ctx.lang))
         val text = service.dumpText()
         ToolResult(true, text.ifBlank { "No text on screen" })
     }
 
     private fun a11yAction() = tool(
         name = "accessibility_action",
-        description = "Perform confirmed taps, text entry, or scrolls in another app. Pass a steps array.",
+        description = "Perform confirmed steps in the current app: tap or long_press by text, view_id, or x/y; set_text; scroll (finds a scrollable child, otherwise swipes); global back/home/recents/notifications. One confirmation lists every step. Prefer operate_app when the target app must be opened first.",
         schema = """{"type":"object","properties":{"summary":{"type":"string"},"steps":{"type":"array","items":{"type":"object"}}},"required":["steps"]}""",
         risk = RiskLevel.DANGEROUS,
         confirm = { args, lang ->
@@ -658,16 +675,17 @@ class ToolRegistry @Inject constructor(
                 for (i in 0 until steps.length()) {
                     val step = steps.optJSONObject(i)
                     lines.append("\n").append(i + 1).append(". ").append(step?.optString("type")).append(" ")
-                        .append(step?.optString("text")).append(" ").append(step?.optString("value"))
+                        .append(step?.optString("text")).append(" ").append(step?.optString("view_id")).append(" ")
+                        .append(step?.optString("value")).append(" ").append(step?.optString("direction"))
                 }
             }
             lines.toString()
         },
     ) { args, ctx ->
         val service = DastyarAccessibilityService.instance
-            ?: return@tool ToolResult(false, bi(ctx.lang, "دسترس‌پذیری خاموش است.", "Accessibility is off."))
+            ?: return@tool ToolResult(false, accessibilityOff(ctx.lang))
         val steps = args.optJSONArray("steps") ?: return@tool ToolResult(false, "Missing steps")
-        ToolResult(true, service.performSteps(steps))
+        ToolResult(true, runSteps(service, steps))
     }
 
     private fun webFetch() = tool(
@@ -722,16 +740,18 @@ class ToolRegistry @Inject constructor(
 
     private fun openApp() = tool(
         name = "open_app",
-        description = "Open an installed app by package name.",
-        schema = obj("package" to str()),
+        description = "Open an installed app by package name or by its launcher label in Persian or English. Pass package, label, or query.",
+        schema = obj("package" to str(), "label" to str(), "query" to str()),
         risk = RiskLevel.SAFE,
-        confirm = { args, _ -> args.optString("package") },
-    ) { args, _ ->
-        val pkg = args.optString("package").trim()
-        val intent = context.packageManager.getLaunchIntentForPackage(pkg)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            ?: return@tool ToolResult(false, "App is not installed")
-        context.startActivity(intent)
-        ToolResult(true, "Opened $pkg")
+        confirm = { args, _ ->
+            args.optString("package").ifBlank { args.optString("label") }.ifBlank { args.optString("query") }
+        },
+    ) { args, ctx ->
+        val query = args.optString("package").ifBlank { args.optString("label") }.ifBlank { args.optString("query") }.trim()
+        if (query.isBlank()) return@tool ToolResult(false, "Pass package, label, or query")
+        val opened = apps.openLabelOrPackage(query)
+            ?: return@tool ToolResult(false, bi(ctx.lang, "این برنامه پیدا نشد: $query", "No installed app matches $query"))
+        ToolResult(true, "Opened $opened")
     }
 
     private fun shareText() = tool(
@@ -917,6 +937,283 @@ class ToolRegistry @Inject constructor(
         ToolResult(true, "Opened settings")
     }
 
+    private fun permissionsDiagnostic() = tool(
+        name = "permissions_diagnostic",
+        description = "Read which permissions and services are granted, missing, or blocked. Safe. Call this when SMS, WhatsApp, Gmail, accessibility, or notification access fails. On Android 13+ the result includes restricted-settings steps when a sideloaded grant is the likely cause. Does not open settings and does not grant anything.",
+        schema = obj(),
+        risk = RiskLevel.SAFE,
+        confirm = { _, lang -> bi(lang, "وضعیت اجازه‌ها", "Permission status") },
+    ) { _, ctx ->
+        val saf = !settings.current().safTreeUri.isNullOrBlank()
+        val report = PermissionDiagnostics.inspect(context, saf)
+        ToolResult(true, report.render(ctx.lang))
+    }
+
+    private fun readWhatsAppNotifications() = tool(
+        name = "read_whatsapp_notifications",
+        description = "Read WhatsApp and WhatsApp Business notifications the user can already see. OTP-like text is redacted. Does not open WhatsApp. Reply with reply_notification when reply=yes.",
+        schema = obj(),
+        risk = RiskLevel.CONFIRM,
+        confirm = { _, lang -> bi(lang, "خواندن اعلان‌های واتساپ", "Read WhatsApp notifications") },
+    ) { _, ctx -> notificationRows(ctx, ::isWhatsAppPackage, "واتساپ", "WhatsApp") }
+
+    private fun readEmailNotifications() = tool(
+        name = "read_email_notifications",
+        description = "Read Gmail and other email notifications the user can already see. There is no Gmail account login in this version. For the open message, use read_screen while Gmail is in front. OTP-like text is redacted.",
+        schema = obj(),
+        risk = RiskLevel.CONFIRM,
+        confirm = { _, lang -> bi(lang, "خواندن اعلان‌های ایمیل", "Read email notifications") },
+    ) { _, ctx -> notificationRows(ctx, ::isEmailPackage, "ایمیل", "Email") }
+
+    private fun replyNotification() = tool(
+        name = "reply_notification",
+        description = "Reply to one notification by the key from list_notifications. Confirms the full text. Uses the notification's reply field when it exists, including wearable actions. Never replies by itself. If there is no reply field, opens that chat and types the text with accessibility. Send is tapped only when tap_send is true. Refuses one-time codes and banking alerts.",
+        schema = obj("key" to str(), "text" to str(), "tap_send" to bool()),
+        risk = RiskLevel.DANGEROUS,
+        confirm = { args, lang ->
+            val tap = if (args.optBoolean("tap_send")) {
+                bi(lang, "\nاگر جعبهٔ پاسخ نباشد، متن نوشته می‌شود و ارسال زده می‌شود.", "\nIf there is no reply field, the text is typed and Send is tapped.")
+            } else {
+                bi(lang, "\nاگر جعبهٔ پاسخ نباشد، متن در گفتگو نوشته می‌شود و ارسال زده نمی‌شود.", "\nIf there is no reply field, the text is typed into the chat and Send is not tapped.")
+            }
+            bi(lang, "پاسخ به اعلان ${args.optString("key")}:\n${args.optString("text")}$tap", "Reply to notification ${args.optString("key")}:\n${args.optString("text")}$tap")
+        },
+    ) { args, ctx ->
+        val key = args.optString("key").trim()
+        val text = args.optString("text")
+        if (key.isBlank() || text.isBlank()) return@tool ToolResult(false, "key and text are required")
+        val listener = DastyarNotificationListener.instance
+            ?: return@tool ToolResult(false, bi(ctx.lang, "دسترسی اعلان داده نشده.", "Notification access is off."))
+        when (val status = listener.reply(key, text)) {
+            ReplyStatus.Sent -> ToolResult(true, bi(ctx.lang, "پاسخ از راه اعلان فرستاده شد.", "Reply sent through the notification."))
+            ReplyStatus.Sensitive -> ToolResult(false, bi(ctx.lang, "این اعلان شبیه رمز یک‌بارمصرف یا بانک است. دستیار به آن پاسخ نمی‌دهد.", "This looks like a one-time code or a banking alert. Dastyar will not reply to it."))
+            ReplyStatus.NotFound -> ToolResult(false, bi(ctx.lang, "این اعلان دیگر نیست.", "That notification is gone."))
+            is ReplyStatus.Failed -> ToolResult(false, status.reason)
+            ReplyStatus.NoRemoteInput -> fallbackReply(ctx, listener, key, text, args.optBoolean("tap_send"))
+        }
+    }
+
+    private fun sendWhatsApp() = tool(
+        name = "send_whatsapp",
+        description = "Open WhatsApp (or WhatsApp Business) on a wa.me link with the phone in country-code digits and the full message. Always confirm recipient and body first. The chat opens with the text filled in. Send is tapped only when tap_send is true and accessibility is on. Does not send silently.",
+        schema = obj("phone" to str(), "text" to str(), "tap_send" to bool()),
+        risk = RiskLevel.DANGEROUS,
+        confirm = { args, lang ->
+            val phone = when (val n = PhoneNumbers.normalize(args.optString("phone"))) {
+                is PhoneNumbers.Normalized.Ok -> n.digits
+                else -> args.optString("phone")
+            }
+            val tap = if (args.optBoolean("tap_send")) {
+                bi(lang, "\nبعد از باز شدن، دکمهٔ ارسال زده می‌شود.", "\nAfter the chat opens, Send will be tapped.")
+            } else {
+                bi(lang, "\nگفتگو با همین متن باز می‌شود. دکمهٔ ارسال زده نمی‌شود.", "\nThe chat opens with this text. Send is not pressed.")
+            }
+            bi(lang, "واتساپ به $phone:\n${args.optString("text")}$tap", "WhatsApp to $phone:\n${args.optString("text")}$tap")
+        },
+    ) { args, ctx ->
+        val text = args.optString("text")
+        if (text.isBlank()) return@tool ToolResult(false, bi(ctx.lang, "متن پیام لازم است.", "Message text is required."))
+        val digits = when (val normalized = PhoneNumbers.normalize(args.optString("phone"))) {
+            is PhoneNumbers.Normalized.Ok -> normalized.digits
+            PhoneNumbers.Normalized.NeedsCountryCode -> return@tool ToolResult(false, bi(ctx.lang, "کد کشور را بدون صفر اول بگذارید. نمونه: 98912…", "Include the country code and drop the leading 0. Example: 98912…"))
+            PhoneNumbers.Normalized.Empty -> return@tool ToolResult(false, bi(ctx.lang, "شماره لازم است.", "A phone number is required."))
+            PhoneNumbers.Normalized.Invalid -> return@tool ToolResult(false, bi(ctx.lang, "شماره معتبر نیست.", "That phone number is not valid."))
+        }
+        val opened = apps.openWhatsApp(digits, text)
+            ?: return@tool ToolResult(false, bi(ctx.lang, "واتساپ نصب نیست.", "WhatsApp is not installed."))
+        if (!args.optBoolean("tap_send")) {
+            return@tool ToolResult(true, bi(ctx.lang, "گفتگو در $opened باز شد. ارسال زده نشد.\n${WhatsAppLinks.waMe(digits, text)}", "Chat opened in $opened. Send was not pressed.\n${WhatsAppLinks.waMe(digits, text)}"))
+        }
+        val service = DastyarAccessibilityService.instance
+            ?: return@tool ToolResult(true, bi(ctx.lang, "گفتگو باز شد ولی دسترس‌پذیری خاموش است، پس ارسال زده نشد.", "The chat opened, but accessibility is off, so Send was not pressed."))
+        val notes = StringBuilder(waitForWindow(service, "whatsapp", 4_000)).append('\n')
+        if (AutomationGate.paused) return@tool ToolResult(false, bi(ctx.lang, "ابزارها متوقف‌اند.", "Tools are paused."))
+        notes.append(tapSendButton(service, "com.whatsapp:id/send"))
+        ToolResult(true, notes.toString())
+    }
+
+    private fun composeEmail() = tool(
+        name = "compose_email",
+        description = "Open Gmail if it is installed, otherwise any email app, with to, subject, and body filled in. Confirm those fields first. The user sends from the composer. Send is tapped only when tap_send is true. This version does not connect a Google account. Official Gmail API OAuth can be added later; it is not implemented here.",
+        schema = obj("to" to str(), "subject" to str(), "body" to str(), "tap_send" to bool()),
+        risk = RiskLevel.CONFIRM,
+        confirm = { args, lang ->
+            val tap = if (args.optBoolean("tap_send")) {
+                bi(lang, "\nدکمهٔ ارسال در برنامهٔ ایمیل زده می‌شود.", "\nSend will be tapped in the mail app.")
+            } else {
+                bi(lang, "\nپیش‌نویس باز می‌شود. ارسال با شماست.", "\nThe draft opens. You send it.")
+            }
+            bi(
+                lang,
+                "ایمیل به ${args.optString("to")}\nموضوع: ${args.optString("subject")}\n${args.optString("body")}$tap",
+                "Email to ${args.optString("to")}\nSubject: ${args.optString("subject")}\n${args.optString("body")}$tap",
+            )
+        },
+    ) { args, ctx ->
+        val draft = MailLinks.draft(args.optString("to"), args.optString("subject"), args.optString("body"))
+            ?: return@tool ToolResult(false, bi(ctx.lang, "گیرندهٔ ایمیل لازم است.", "An email recipient is required."))
+        val opened = apps.openMail(draft)
+            ?: return@tool ToolResult(false, bi(ctx.lang, "برنامهٔ ایمیل پیدا نشد.", "No email app is installed."))
+        if (!args.optBoolean("tap_send")) {
+            return@tool ToolResult(true, bi(ctx.lang, "پیش‌نویس در $opened باز شد. ارسال زده نشد.\n${draft.mailto}", "Draft opened in $opened. Send was not pressed.\n${draft.mailto}"))
+        }
+        val service = DastyarAccessibilityService.instance
+            ?: return@tool ToolResult(true, bi(ctx.lang, "پیش‌نویس باز شد. دسترس‌پذیری خاموش است، پس ارسال زده نشد.", "The draft opened. Accessibility is off, so Send was not pressed."))
+        val hint = if (opened == MailLinks.GMAIL) "com.google.android.gm" else null
+        val notes = StringBuilder(waitForWindow(service, hint, 4_000)).append('\n')
+        if (AutomationGate.paused) return@tool ToolResult(false, bi(ctx.lang, "ابزارها متوقف‌اند.", "Tools are paused."))
+        notes.append(tapSendButton(service, "com.google.android.gm:id/send"))
+        ToolResult(true, notes.toString())
+    }
+
+    private fun operateApp() = tool(
+        name = "operate_app",
+        description = "Operate any installed app. Optional package or label opens it (Persian or English launcher name). Then wait for the window and run confirmed steps: tap, long_press, set_text, scroll, global back/home/recents. One confirmation covers the whole plan. Rechecks that tools are not paused. Accessibility must be on for steps.",
+        schema = """{"type":"object","properties":{"package":{"type":"string"},"label":{"type":"string"},"query":{"type":"string"},"wait_ms":{"type":"integer"},"summary":{"type":"string"},"steps":{"type":"array","items":{"type":"object"}}}}""",
+        risk = RiskLevel.DANGEROUS,
+        confirm = { args, lang ->
+            val summary = args.optString("summary").ifBlank { bi(lang, "کار با برنامه", "Operate an app") }
+            val target = args.optString("package").ifBlank { args.optString("label") }.ifBlank { args.optString("query") }
+            val lines = StringBuilder(summary)
+            if (target.isNotBlank()) lines.append("\n").append(target)
+            val steps = args.optJSONArray("steps")
+            if (steps != null) {
+                for (i in 0 until steps.length()) {
+                    val step = steps.optJSONObject(i)
+                    lines.append("\n").append(i + 1).append(". ").append(step?.optString("type")).append(" ")
+                        .append(step?.optString("text")).append(" ").append(step?.optString("view_id")).append(" ")
+                        .append(step?.optString("value"))
+                }
+            }
+            lines.toString()
+        },
+    ) { args, ctx ->
+        if (AutomationGate.paused) return@tool ToolResult(false, bi(ctx.lang, "ابزارها متوقف‌اند.", "Tools are paused."))
+        val query = args.optString("package").ifBlank { args.optString("label") }.ifBlank { args.optString("query") }.trim()
+        val notes = StringBuilder()
+        if (query.isNotBlank()) {
+            val opened = apps.openLabelOrPackage(query)
+                ?: return@tool ToolResult(false, bi(ctx.lang, "این برنامه پیدا نشد: $query", "No installed app matches $query"))
+            notes.append("Opened $opened\n")
+        }
+        val steps = args.optJSONArray("steps")
+        if (steps == null || steps.length() == 0) {
+            return@tool ToolResult(notes.isNotEmpty(), notes.toString().ifBlank { "Nothing to do" })
+        }
+        val service = DastyarAccessibilityService.instance
+            ?: return@tool ToolResult(false, notes.toString() + accessibilityOff(ctx.lang))
+        val hint = query.takeIf { it.contains('.') && !it.contains(' ') }
+        notes.append(waitForWindow(service, hint, args.optLong("wait_ms", 2_500))).append('\n')
+        if (AutomationGate.paused) return@tool ToolResult(false, bi(ctx.lang, "ابزارها متوقف‌اند.", "Tools are paused."))
+        notes.append(runSteps(service, steps))
+        ToolResult(true, notes.toString())
+    }
+
+    private suspend fun requireGrant(ctx: ToolContext, permissions: List<String>, rationale: String): ToolResult? {
+        if (ui.ensurePermissions(permissions, rationale)) return null
+        return ToolResult(false, PermissionMessages.denied(ctx.lang, permissions, Build.VERSION.SDK_INT))
+    }
+
+    private fun deny(lang: String) = ToolResult(false, PermissionMessages.denied(lang, emptyList(), Build.VERSION.SDK_INT))
+
+    private fun accessibilityOff(lang: String): String {
+        val base = bi(
+            lang,
+            "دسترس‌پذیری خاموش است. از تنظیمات دستیار، صفحهٔ توضیح را بخوانید و خدمت را روشن کنید.",
+            "Accessibility is off. Open Dastyar settings, read the disclosure, and turn the service on.",
+        )
+        return if (RestrictedSettings.applies(Build.VERSION.SDK_INT)) base + "\n" + RestrictedSettings.guide(lang) else base
+    }
+
+    private fun notificationRows(ctx: ToolContext, match: (String) -> Boolean, faName: String, enName: String): ToolResult {
+        if (!listenerEnabled()) {
+            val off = bi(ctx.lang, "دسترسی اعلان داده نشده.", "Notification access is off.")
+            val guide = if (RestrictedSettings.applies(Build.VERSION.SDK_INT)) "\n" + RestrictedSettings.guide(ctx.lang) else ""
+            return ToolResult(false, off + guide)
+        }
+        val rows = DastyarNotificationListener.instance?.snapshot().orEmpty().filter { match(it.packageName) }
+        if (rows.isEmpty()) return ToolResult(true, bi(ctx.lang, "اعلان $faName نیست.", "No $enName notifications."))
+        return ToolResult(true, rows.joinToString("\n") { "${it.key} :: ${it.packageName} :: reply=${if (it.canReply) "yes" else "no"} :: ${it.summary}" })
+    }
+
+    private suspend fun fallbackReply(ctx: ToolContext, listener: DastyarNotificationListener, key: String, text: String, tapSend: Boolean): ToolResult {
+        val target = listener.target(key)
+            ?: return ToolResult(false, bi(ctx.lang, "جعبهٔ پاسخ نیست و اعلان هم نیست.", "There is no reply field, and the notification is gone."))
+        if (target.sensitive) {
+            return ToolResult(false, bi(ctx.lang, "این اعلان شبیه رمز یک‌بارمصرف یا بانک است. دستیار به آن پاسخ نمی‌دهد.", "This looks like a one-time code or a banking alert. Dastyar will not reply to it."))
+        }
+        val opened = listener.openContent(key)
+        val notes = StringBuilder(
+            if (opened) {
+                bi(ctx.lang, "جعبهٔ پاسخ نبود. همان گفتگو باز شد.", "No reply field. Opened that chat.")
+            } else {
+                val launched = apps.openLabelOrPackage(target.packageName)
+                if (launched == null) {
+                    return ToolResult(false, bi(ctx.lang, "جعبهٔ پاسخ نیست و برنامه باز نشد.", "There is no reply field, and the app did not open."))
+                }
+                bi(ctx.lang, "جعبهٔ پاسخ نبود. $launched باز شد.", "No reply field. Opened $launched.")
+            },
+        )
+        val service = DastyarAccessibilityService.instance
+        if (service == null) {
+            notes.append("\n").append(accessibilityOff(ctx.lang))
+            return ToolResult(false, notes.toString())
+        }
+        notes.append("\n").append(waitForWindow(service, target.packageName, 4_000))
+        if (AutomationGate.paused) return ToolResult(false, bi(ctx.lang, "ابزارها متوقف‌اند.", "Tools are paused."))
+        val steps = JSONArray().put(JSONObject().put("type", "set_text").put("value", text))
+        notes.append("\n").append(runSteps(service, steps))
+        if (tapSend) notes.append(tapSendButton(service, "${target.packageName}:id/send"))
+        return ToolResult(true, notes.toString())
+    }
+
+    private suspend fun waitForWindow(service: DastyarAccessibilityService, packageHint: String?, timeoutMs: Long): String {
+        val deadline = System.currentTimeMillis() + timeoutMs.coerceIn(200, 8_000)
+        while (System.currentTimeMillis() < deadline) {
+            if (AutomationGate.paused) return "Paused"
+            val pkg = withContext(Dispatchers.Main.immediate) { service.activePackage() }
+            if (!pkg.isNullOrBlank() && (packageHint.isNullOrBlank() || pkg.contains(packageHint, true) || packageHint.contains(pkg, true))) {
+                return "window $pkg"
+            }
+            delay(200)
+        }
+        return "timed out waiting for window"
+    }
+
+    private suspend fun tapSendButton(service: DastyarAccessibilityService, viewId: String): String {
+        val steps = JSONArray()
+            .put(JSONObject().put("type", "tap").put("view_id", viewId))
+            .put(JSONObject().put("type", "tap").put("text", "Send"))
+            .put(JSONObject().put("type", "tap").put("text", "ارسال"))
+        val notes = StringBuilder()
+        for (i in 0 until steps.length()) {
+            if (AutomationGate.paused) return notes.append("Paused").toString()
+            val line = withContext(Dispatchers.Main.immediate) { service.perform(steps.getJSONObject(i)) }
+            notes.append(line).append('\n')
+            if (line.startsWith("clicked") || line.startsWith("tapped")) return notes.toString()
+        }
+        return notes.toString()
+    }
+
+    private suspend fun runSteps(service: DastyarAccessibilityService, steps: JSONArray): String {
+        val notes = StringBuilder()
+        for (i in 0 until steps.length()) {
+            if (AutomationGate.paused) {
+                notes.append("Paused\n")
+                break
+            }
+            val step = steps.optJSONObject(i) ?: continue
+            val line = if (step.optString("type") == "wait") {
+                delay(step.optLong("ms", 400).coerceIn(0, 4_000))
+                "waited"
+            } else {
+                withContext(Dispatchers.Main.immediate) { service.perform(step) }
+            }
+            notes.append(i + 1).append(": ").append(line).append('\n')
+        }
+        return notes.toString().ifBlank { "No steps" }
+    }
+
     private fun tool(
         name: String,
         description: String,
@@ -925,17 +1222,6 @@ class ToolRegistry @Inject constructor(
         confirm: (JSONObject, String) -> String,
         run: suspend (JSONObject, ToolContext) -> ToolResult,
     ): Registered = Registered(ToolSpec(name, description, schema), risk, confirm, run)
-
-    private fun launcherApps(): List<Pair<String, String>> {
-        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val resolved = if (Build.VERSION.SDK_INT >= 33) {
-            context.packageManager.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0))
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.queryIntentActivities(intent, 0)
-        }
-        return resolved.map { it.loadLabel(context.packageManager).toString() to it.activityInfo.packageName }
-    }
 
     private fun foregroundApp(): String {
         val appOps = context.getSystemService(android.app.AppOpsManager::class.java)
