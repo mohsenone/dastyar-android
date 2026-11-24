@@ -1,0 +1,120 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /opt/android-sdk
+      ANDROID_SDK_ROOT: /opt/android-sdk
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Require signing secrets
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          set -eu
+          missing=0
+          for name in SIGNING_KEYSTORE_BASE64 SIGNING_STORE_PASSWORD SIGNING_KEY_ALIAS SIGNING_KEY_PASSWORD; do
+            eval "value=\${$name-}"
+            if [ -z "$value" ]; then
+              echo "::error::Missing GitHub Actions secret $name. Refusing to publish an unsigned APK as a release."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Install Android SDK
+        run: |
+          set -eu
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          curl -fsSL -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip
+          rm -rf /tmp/cmdline-tools
+          unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools
+          rm -rf "$ANDROID_HOME/cmdline-tools/latest"
+          mv /tmp/cmdline-tools/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          mkdir -p "$HOME/.android"
+          touch "$HOME/.android/repositories.cfg"
+          # commandlinetools 16111833 ships sdkmanager. Newer CLIs also ship `android sdk`.
+          if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
+            sdkmanager --sdk_root="$ANDROID_HOME" "platforms;android-35" "build-tools;35.0.1" "platform-tools"
+          elif command -v android >/dev/null 2>&1; then
+            android sdk install "platforms/android-35" "build-tools/35.0.1" "platform-tools"
+          else
+            echo "::error::Android cmdline-tools did not include sdkmanager or android."
+            exit 1
+          fi
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+
+      - name: Decode release keystore
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/signing"
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing/dastyar.jks"
+          test -s "$RUNNER_TEMP/signing/dastyar.jks"
+
+      - name: Assemble signed release APK
+        env:
+          SIGNING_STORE_FILE: ${{ runner.temp }}/signing/dastyar.jks
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --stacktrace --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dastyar-release
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*-release.apk
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          body: |
+            Dastyar (دستیار)  — on-device AI agent.
+            Install the signed APK from this release. You bring your own API key.
+            دستیار روی گوشی کار می‌کند. کلید را خودتان می‌آورید. فایل APK امضاشدهٔ همین انتشار را نصب کنید.
+
+      - name: Upload APK to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -eu
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "::warning::TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is absent. Skipping Telegram upload."
+            exit 0
+          fi
+          apk="$(find app/build/outputs/apk/release -name '*.apk' -print -quit)"
+          test -n "$apk"
+          curl --fail-with-body -sS \
+            -F "chat_id=${TELEGRAM_CHAT_ID}" \
+            -F "document=@${apk}" \
+            -F "caption=Dastyar ${GITHUB_REF_NAME} — signed release APK. دستیار، نسخهٔ امضاشده." \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"

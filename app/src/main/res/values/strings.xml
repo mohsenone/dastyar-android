@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Dastyar</string>
+    <string name="shortcut_new_chat">New chat</string>
+    <string name="shortcut_voice">Voice</string>
+</resources>

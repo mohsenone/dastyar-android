@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="a11y_service_description">Dastyar can read text on the screen and perform taps, scrolls, and typing that you confirm first. It does not act in the background on its own. Turn it off anytime in system Accessibility settings.</string>
+</resources>
