@@ -139,3 +139,27 @@ Still `versionCode` 6 and `versionName` 0.4.0. No tag and no GitHub Release. A s
 - Signed APK: `/tmp/dastyar-0.4.0.apk` (3,238,439 bytes). SHA-256 `f430a4976d0d567a4885e845093d27879bb0f04b2ea30d7fda4bb26e3c08196a`. This replaces the earlier 0.4.0 file (`787cd3d2411f6b77711fc11c064bb143594afaefcaee5f248997f6ada33102c6`). `apksigner verify` succeeded with APK Signature Scheme v2. Certificate DN `CN=Dastyar, OU=Mobile, O=Dastyar, C=IR`. SHA-1 `f2eab974ba099eb25a0b970d156f88aebf5fd950`. SHA-256 `9796073f30fec3e58e3fb9931103815b0205caa4060a4adc53fbc2b9ab19e453`. Same certificate as the first 0.4.0 assemble.
 - `aapt dump badging` reports package `app.dastyar.agent`, `versionCode` 6, `versionName` 0.4.0, minSdk 26, targetSdk 35, compileSdk 35.
 - No tag `v0.4.0` and no GitHub Release. This server has no emulator. Nothing was sent to Telegram. The Connectors crash was not re-run on a device here.
+
+## 2026-11-26 — v0.4.0 publish
+
+The sections above are the pre-tag local builds. The first 0.4.0 APK (`787cd3d2…`) was replaced on this machine by the Connectors fix (`f430a497…`) before the tag. This follow-up does not move `v0.4.0`.
+
+### Publish
+
+- Commit tagged: `0e6a8f7` — Fix the Connectors tab crash on an empty connector snapshot. That commit is on top of `b229320`. Both are `versionCode` 6 and `versionName` 0.4.0.
+- Annotated tag `v0.4.0` points at `0e6a8f75126c14d18eb1431933aeb72cc3f0628b`. It was not force-pushed.
+- Release: https://github.com/mohsenone/dastyar-android/releases/tag/v0.4.0
+- APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.4.0/app-release.apk (3,238,439 bytes, state uploaded). A locally signed APK of the same size was attached first so the release was not empty. Workflow run [45857297862](https://github.com/mohsenone/dastyar-android/actions/runs/45857297862) then deleted that asset and uploaded its own `app-release.apk`. Both files are 3,238,439 bytes and the same signing certificate. Zip SHA-256 differs because Actions rebuilt the APK from the tag: local (the file the supervisor installed) `f430a4976d0d567a4885e845093d27879bb0f04b2ea30d7fda4bb26e3c08196a`, release asset `89bedabe40e5299080b827217e2f4e614d9016b7a75f775cbad171fd87ce8117`.
+- `aapt dump badging` on the release asset reports `versionCode` 6 and `versionName` 0.4.0, package `app.dastyar.agent`, compileSdk 35, minSdk 26, targetSdk 35. `apksigner verify` succeeded with APK Signature Scheme v2. Certificate DN is `CN=Dastyar, OU=Mobile, O=Dastyar, C=IR`. SHA-1 `f2eab974ba099eb25a0b970d156f88aebf5fd950`. SHA-256 `9796073f30fec3e58e3fb9931103815b0205caa4060a4adc53fbc2b9ab19e453`. Same certificate as v0.3.0 and the local 0.4.0 APK.
+- Nothing was sent to Telegram from this machine. The tag workflow’s existing Telegram step ran and logged `TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is absent. Skipping Telegram upload.` This pass did not call the Telegram API itself.
+- Actions replaced the release body with the generic workflow text (`Dastyar (دستیار) — on-device AI agent`). The bilingual notes were written back with `gh release edit`. The asset stayed `app-release.apk` at 3,238,439 bytes.
+
+### Emulator QA
+
+- A supervisor installed the local APK (`f430a497…`, built from `0e6a8f7`) on an official Android SDK emulator: API 35 `google_apis` x86_64, Pixel 6 profile, headless TCG with SwiftShader. KVM is not usable on that host. It was not tested on a physical phone.
+- They walked onboarding, chat, Providers (opened twice), Connectors (after the fix, opened twice), Routines, Settings, Privacy, Saved facts, Tool audit, and the Permissions wizard, Status, Fix everything, and Privacy screens, in English and in Persian (right to left).
+- Runtime and special access were granted and revoked with `adb pm grant`, `pm revoke`, `appops`, and `settings put secure` for `enabled_accessibility_services` and `enabled_notification_listeners`. The Status screen was checked again on resume. SMS, contacts, phone, call log, calendar, camera, microphone, location, background location, notifications, overlay, photos and media, all-files, and Accessibility updated as expected. Notification access stayed Needs settings after `enabled_notification_listeners` was written. That row now explains Android 13+ restricted settings. `ACCESS_NOTIFICATION_POLICY` is not a valid `appops` name on that system image.
+- A live tool call was not driven with an API key. The per-tool “missing permission and one-tap Fix” path was checked as Status-row copy and buttons, not through the agent loop.
+- After `0e6a8f7`, opening Connectors no longer crashed. `NoSuchElementException` is gone. The process stayed alive. No `AndroidRuntime` FATAL for `app.dastyar.agent` was seen on the second install. Providers did not go black on a second open. That is the `FLAG_SECURE` change from `b229320`.
+- The home-screen widget and the quick-settings tile were not pinned or tapped on the emulator. Share-in was already in the tree and was not re-tested as its own pass. Diagnostic titles still live in Kotlin. Some older screens still use `t()`.
+- Unit tests: 66, 0 failures (debug and release unit-test tasks, 132 executions) after the fix. No instrumented tests. The build server has no emulator.
