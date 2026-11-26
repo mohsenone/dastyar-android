@@ -61,7 +61,10 @@ class ToolRegistry @Inject constructor(
     private val chats: ChatRepository,
     private val settings: SettingsStore,
     private val scheduler: RoutineSchedulerPort,
+    private val dynamic: DynamicToolSource,
 ) : ToolExecutor {
+    @Volatile private var offCategories: Set<String> = emptySet()
+    @Volatile private var offTools: Set<String> = emptySet()
     private val http = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
@@ -114,14 +117,22 @@ class ToolRegistry @Inject constructor(
         add(createRoutine())
         add(shell())
         add(allFilesSettings())
+        addAll(extraDeviceTools(context, ui, apps) { name, description, schema, risk, confirm, run ->
+            tool(name, description, schema, risk, confirm, run)
+        })
     }
 
-    override fun specs(): List<ToolSpec> = tools.map { it.spec }
+    override fun applyPolicy(disabledCategories: String, disabledTools: String) {
+        offCategories = splitSet(disabledCategories)
+        offTools = splitSet(disabledTools)
+    }
 
-    override fun riskOf(name: String): RiskLevel = tools.find { it.spec.name == name }?.risk ?: RiskLevel.DANGEROUS
+    override fun specs(): List<ToolSpec> = visible().map { it.spec }
+
+    override fun riskOf(name: String): RiskLevel = lookup(name)?.risk ?: RiskLevel.DANGEROUS
 
     override fun summary(name: String, argsJson: String, lang: String): String {
-        val tool = tools.find { it.spec.name == name } ?: return name
+        val tool = lookup(name) ?: return name
         return tool.confirm(jsonArgs(argsJson), lang)
     }
 
@@ -129,8 +140,10 @@ class ToolRegistry @Inject constructor(
         if (AutomationGate.paused) {
             return ToolResult(false, bi(ctx.lang, "ابزارها متوقف‌اند.", "Tools are paused."))
         }
-        val tool = tools.find { it.spec.name == name }
-            ?: return ToolResult(false, "Unknown tool $name")
+        if (!allowed(name)) {
+            return ToolResult(false, bi(ctx.lang, "این ابزار در تنظیمات خاموش است.", "This tool is turned off in Settings."))
+        }
+        val tool = lookup(name) ?: return ToolResult(false, "Unknown tool $name")
         return try {
             tool.run(jsonArgs(argsJson), ctx)
         } catch (error: SecurityException) {
@@ -651,7 +664,7 @@ class ToolRegistry @Inject constructor(
 
     private fun readScreen() = tool(
         name = "read_screen",
-        description = "Read the current window through accessibility: text, view ids, and whether a node is clickable or editable. Use this for WhatsApp, Gmail, or any app in the foreground. Does not tap.",
+        description = "Read the current window through accessibility as a capped tree: text, contentDescription, viewId, clickable, editable, scrollable, checked, bounds, and depth. Does not tap.",
         schema = obj(),
         risk = RiskLevel.CONFIRM,
         confirm = { _, lang -> bi(lang, "خواندن متن صفحه. ممکن است اطلاعات حساس باشد.", "Read on-screen text. It may include sensitive content.") },
@@ -664,7 +677,7 @@ class ToolRegistry @Inject constructor(
 
     private fun a11yAction() = tool(
         name = "accessibility_action",
-        description = "Perform confirmed steps in the current app: tap or long_press by text, view_id, or x/y; set_text; scroll (finds a scrollable child, otherwise swipes); global back/home/recents/notifications. One confirmation lists every step. Prefer operate_app when the target app must be opened first.",
+        description = "Perform confirmed steps in the current app: tap, long_press, set_text, scroll, swipe, or global back/home/recents/notifications/quick_settings/screenshot/lock_screen. Match text, view_id, or content_description (contains or exact). One confirmation lists every step. After each step the tree is read again. Prefer operate_app when the target app must be opened first.",
         schema = """{"type":"object","properties":{"summary":{"type":"string"},"steps":{"type":"array","items":{"type":"object"}}},"required":["steps"]}""",
         risk = RiskLevel.DANGEROUS,
         confirm = { args, lang ->
@@ -685,7 +698,9 @@ class ToolRegistry @Inject constructor(
         val service = DastyarAccessibilityService.instance
             ?: return@tool ToolResult(false, accessibilityOff(ctx.lang))
         val steps = args.optJSONArray("steps") ?: return@tool ToolResult(false, "Missing steps")
-        ToolResult(true, runSteps(service, steps))
+        val shots = mutableListOf<String>()
+        val notes = runSteps(service, steps, observe = true, shots = shots, screenshot = args.optBoolean("screenshot"))
+        ToolResult(true, notes, shots)
     }
 
     private fun webFetch() = tool(
@@ -845,7 +860,7 @@ class ToolRegistry @Inject constructor(
 
     private fun createRoutine() = tool(
         name = "create_routine",
-        description = "Schedule a daily or one-shot prompt. Unattended mode defaults off and must be explicit.",
+        description = "Create a routine. triggerKind is schedule (daily clock), sms, or notification. triggerFilter is an optional substring of the SMS or notification. Unattended mode defaults off and must be explicit. Sends, calls, and deletes still confirm unless unattended is on.",
         schema = obj(
             "title" to str(),
             "prompt" to str(),
@@ -853,6 +868,8 @@ class ToolRegistry @Inject constructor(
             "minute" to int(),
             "repeatDaily" to bool(),
             "allowUnattended" to bool(),
+            "triggerKind" to str(),
+            "triggerFilter" to str(),
         ),
         risk = RiskLevel.CONFIRM,
         confirm = { args, lang ->
@@ -881,6 +898,10 @@ class ToolRegistry @Inject constructor(
                 enabled = true,
                 allowUnattended = args.optBoolean("allowUnattended", false),
                 createdAt = System.currentTimeMillis(),
+                triggerKind = args.optString("triggerKind", "schedule").let { kind ->
+                    if (kind in setOf("schedule", "sms", "notification")) kind else "schedule"
+                },
+                triggerFilter = args.optString("triggerFilter").take(120),
             ),
         )
         scheduler.schedule(id)
@@ -1068,8 +1089,8 @@ class ToolRegistry @Inject constructor(
 
     private fun operateApp() = tool(
         name = "operate_app",
-        description = "Operate any installed app. Optional package or label opens it (Persian or English launcher name). Then wait for the window and run confirmed steps: tap, long_press, set_text, scroll, global back/home/recents. One confirmation covers the whole plan. Rechecks that tools are not paused. Accessibility must be on for steps.",
-        schema = """{"type":"object","properties":{"package":{"type":"string"},"label":{"type":"string"},"query":{"type":"string"},"wait_ms":{"type":"integer"},"summary":{"type":"string"},"steps":{"type":"array","items":{"type":"object"}}}}""",
+        description = "Operate any installed app. Optional package, label, or deep_link opens it. Then wait and run confirmed steps: tap, long_press, set_text, scroll, swipe, global actions. One confirmation lists the steps. After each step the screen tree is read again. Set screenshot true to attach an accessibility screenshot on API 30+ when the model can see images. Vendor UIs change; if a step misses, say so and do not invent success.",
+        schema = """{"type":"object","properties":{"package":{"type":"string"},"label":{"type":"string"},"query":{"type":"string"},"deep_link":{"type":"string"},"wait_ms":{"type":"integer"},"summary":{"type":"string"},"screenshot":{"type":"boolean"},"steps":{"type":"array","items":{"type":"object"}}}}""",
         risk = RiskLevel.DANGEROUS,
         confirm = { args, lang ->
             val summary = args.optString("summary").ifBlank { bi(lang, "کار با برنامه", "Operate an app") }
@@ -1091,7 +1112,12 @@ class ToolRegistry @Inject constructor(
         if (AutomationGate.paused) return@tool ToolResult(false, bi(ctx.lang, "ابزارها متوقف‌اند.", "Tools are paused."))
         val query = args.optString("package").ifBlank { args.optString("label") }.ifBlank { args.optString("query") }.trim()
         val notes = StringBuilder()
-        if (query.isNotBlank()) {
+        val deep = args.optString("deep_link").trim()
+        if (deep.isNotBlank()) {
+            val opened = apps.openDeepLink(deep, query.takeIf { it.contains('.') && !it.contains(' ') })
+            if (opened == null) return@tool ToolResult(false, bi(ctx.lang, "پیوند باز نشد.", "The link did not open."))
+            notes.append("Opened $opened\n")
+        } else if (query.isNotBlank()) {
             val opened = apps.openLabelOrPackage(query)
                 ?: return@tool ToolResult(false, bi(ctx.lang, "این برنامه پیدا نشد: $query", "No installed app matches $query"))
             notes.append("Opened $opened\n")
@@ -1105,8 +1131,9 @@ class ToolRegistry @Inject constructor(
         val hint = query.takeIf { it.contains('.') && !it.contains(' ') }
         notes.append(waitForWindow(service, hint, args.optLong("wait_ms", 2_500))).append('\n')
         if (AutomationGate.paused) return@tool ToolResult(false, bi(ctx.lang, "ابزارها متوقف‌اند.", "Tools are paused."))
-        notes.append(runSteps(service, steps))
-        ToolResult(true, notes.toString())
+        val shots = mutableListOf<String>()
+        notes.append(runSteps(service, steps, observe = true, shots = shots, screenshot = args.optBoolean("screenshot")))
+        ToolResult(true, notes.toString(), shots)
     }
 
     private suspend fun requireGrant(ctx: ToolContext, permissions: List<String>, rationale: String): ToolResult? {
@@ -1195,7 +1222,13 @@ class ToolRegistry @Inject constructor(
         return notes.toString()
     }
 
-    private suspend fun runSteps(service: DastyarAccessibilityService, steps: JSONArray): String {
+    private suspend fun runSteps(
+        service: DastyarAccessibilityService,
+        steps: JSONArray,
+        observe: Boolean = false,
+        shots: MutableList<String>? = null,
+        screenshot: Boolean = false,
+    ): String {
         val notes = StringBuilder()
         for (i in 0 until steps.length()) {
             if (AutomationGate.paused) {
@@ -1210,9 +1243,32 @@ class ToolRegistry @Inject constructor(
                 withContext(Dispatchers.Main.immediate) { service.perform(step) }
             }
             notes.append(i + 1).append(": ").append(line).append('\n')
+            if (observe) {
+                val tree = withContext(Dispatchers.Main.immediate) { service.dumpText() }.take(900)
+                notes.append("screen:\n").append(tree).append('\n')
+                if (screenshot && (shots?.size ?: 0) < 3 && Build.VERSION.SDK_INT >= 30) {
+                    val path = withContext(Dispatchers.Main.immediate) { service.captureScreenshot() }
+                    if (path != null) shots?.add(path)
+                }
+            }
         }
         return notes.toString().ifBlank { "No steps" }
     }
+
+    private fun splitSet(raw: String): Set<String> =
+        raw.split(',', '\n').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+
+    private fun allowed(name: String): Boolean =
+        name !in offTools && ToolCategories.of(name) !in offCategories
+
+    private fun fromDynamic(): List<Registered> = dynamic.current().map { item ->
+        Registered(item.spec, item.risk, item.confirm, item.run)
+    }
+
+    private fun lookup(name: String): Registered? =
+        (tools + fromDynamic()).find { it.spec.name == name }
+
+    private fun visible(): List<Registered> = (tools + fromDynamic()).filter { allowed(it.spec.name) }
 
     private fun tool(
         name: String,
@@ -1365,7 +1421,7 @@ class ToolRegistry @Inject constructor(
         dest
     }.getOrNull()
 
-    private data class Registered(
+    internal data class Registered(
         val spec: ToolSpec,
         val risk: RiskLevel,
         val confirm: (JSONObject, String) -> String,

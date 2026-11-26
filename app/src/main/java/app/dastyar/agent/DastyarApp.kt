@@ -7,14 +7,18 @@ import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import app.dastyar.agent.data.RoutineRepository
 import app.dastyar.agent.data.SettingsStore
 import app.dastyar.agent.tools.AutomationGate
 import app.dastyar.agent.tools.RoutineSchedulerPort
+import app.dastyar.agent.tools.RoutineTriggers
 import dagger.hilt.android.HiltAndroidApp
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlinx.coroutines.launch
@@ -23,11 +27,18 @@ import kotlinx.coroutines.launch
 class DastyarApp : Application() {
     @Inject lateinit var settings: SettingsStore
     @Inject lateinit var scheduler: RoutineSchedulerPort
+    @Inject lateinit var routines: RoutineRepository
     @Inject lateinit var scope: AppScope
+
+    private val lastTrigger = ConcurrentHashMap<String, Long>()
 
     override fun onCreate() {
         super.onCreate()
         Notifications.ensure(this)
+        RoutineTriggers.onSms = { from, body -> dispatchTrigger("sms", "$from\n$body") }
+        RoutineTriggers.onNotification = { pkg, title, text ->
+            dispatchTrigger("notification", "$pkg\n$title\n$text")
+        }
         applyLocale(Bootstrap.language(this))
         publishShortcuts()
         scope.scope.launch {
@@ -45,6 +56,24 @@ class DastyarApp : Application() {
             ExistingPeriodicWorkPolicy.UPDATE,
             request,
         )
+    }
+
+    private fun dispatchTrigger(kind: String, haystack: String) {
+        scope.scope.launch {
+            val rows = runCatching { routines.list() }.getOrNull() ?: return@launch
+            val now = System.currentTimeMillis()
+            rows.filter { it.enabled && it.triggerKind == kind }.forEach { routine ->
+                val filter = routine.triggerFilter.trim()
+                if (filter.isNotEmpty() && !haystack.contains(filter, ignoreCase = true)) return@forEach
+                val previous = lastTrigger[routine.id] ?: 0L
+                if (now - previous < 60_000) return@forEach
+                lastTrigger[routine.id] = now
+                val start = Intent(this@DastyarApp, AgentForegroundService::class.java)
+                    .setAction(AgentForegroundService.ACTION_ROUTINE)
+                    .putExtra(AgentForegroundService.EXTRA_ID, routine.id)
+                runCatching { ContextCompat.startForegroundService(this@DastyarApp, start) }
+            }
+        }
     }
 
     private fun applyLocale(language: String) {

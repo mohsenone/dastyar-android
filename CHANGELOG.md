@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.0 — 2026-11-26
+
+English
+
+- Connectors screen (Persian and English): Google OAuth with PKCE, GitHub, Telegram Bot API, Notion, webhook, web search (Tavily, Brave, or SearXNG), RSS, weather (Open-Meteo or a key you add for OpenWeather), remote MCP servers, and optional Shizuku. A connector that is off adds no tools. Connected means a real token or a successful test.
+- Google: Gmail read/search and confirmed send, Calendar list/create/update/delete. Drive and Contacts are implemented and stay off the default scopes until you opt in. Scopes that need Google verification return the API error. There is no fake sign-in.
+- Deeper accessibility: full screen tree, find, click, long-press, set text, scroll, swipe, global actions, wait-for-element, and a re-read after each step. Helpers for WhatsApp, the Telegram app, Gmail, Instagram, and Chrome. Media, volume, brightness, DND, and honest Wi-Fi/Bluetooth panels.
+- Settings: tool categories, confirmation modes with a safety floor (send, email, call, delete, and pay still ask in auto), a clearer audit log, a per-chat provider and model, and routines on a clock, an SMS, or a notification.
+- Shizuku is optional. If it is missing, the tools say so. No root exploit.
+
+Not finished, or only partial: Google’s own verification for sensitive scopes; Drive and Contacts depend on the scopes you grant; Instagram has no stable UI API; the Telegram app helper is intents plus accessibility, not MTProto; the bot can send a file only from app storage; MCP SSE is one call at a time and `tools/list` is a single page; Shizuku uses the private `newProcess` method of version 13.1.5; this build was not run on a phone.
+
+فارسی
+
+- صفحهٔ اتصال‌ها (فارسی و انگلیسی): OAuth گوگل با PKCE، گیت‌هاب، رابط ربات تلگرام، نوشن، وب‌هوک، جستجوی وب (Tavily یا Brave یا SearXNG)، RSS، هوا (Open-Meteo یا کلیدی که خودتان برای OpenWeather می‌گذارید)، سرور MCP، و شیزوکوی اختیاری. اتصال خاموش ابزاری اضافه نمی‌کند. «متصل» یعنی توکن واقعی یا آزمایش موفق.
+- گوگل: خواندن و جستجوی جیمیل و ارسالِ تأییدشده، فهرست و ساخت و ویرایش و حذف تقویم. درایو و مخاطبین پیاده شده‌اند و تا وقتی خودتان روشن نکنید در دامنه‌های پیش‌فرض نیستند. دامنه‌ای که تأیید گوگل بخواهد خطای API را برمی‌گرداند. ورود ساختگی نیست.
+- دسترس‌پذیری عمیق‌تر: درخت کامل صفحه، پیدا کردن، کلیک، لمس طولانی، نوشتن، پیمایش، کشیدن، عمل سراسری، انتظار برای عنصر، و خواندن دوباره بعد از هر گام. کمک‌کننده برای واتساپ، برنامهٔ تلگرام، جیمیل، اینستاگرام و کروم. رسانه، صدا، روشنایی، مزاحم‌نشوید، و پنل صادقانهٔ وای‌فای و بلوتوث.
+- تنظیمات: دستهٔ ابزار، حالت تأیید با کف ایمنی (ارسال، ایمیل، تماس، حذف و پرداخت در حالت خودکار هم می‌پرسند)، گزارش روشن‌تر، مدل جدا برای هر گفتگو، و روال با ساعت یا پیامک یا اعلان.
+- شیزوکو اختیاری است. اگر نباشد ابزارها همین را می‌گویند. بهره‌جویی روت نیست.
+
+آنچه ناتمام یا ناقص است: تأیید خود گوگل برای دامنه‌های حساس؛ درایو و مخاطبین به دامنه‌ای که می‌دهید وابسته‌اند؛ اینستاگرام رابط پایدار ندارد؛ کمک‌کنندهٔ برنامهٔ تلگرام اینتنت و دسترس‌پذیری است نه MTProto؛ ربات فایل را فقط از حافظهٔ برنامه می‌فرستد؛ SSE در MCP برای هر فراخوانی جداست و `tools/list` یک صفحه است؛ شیزوکو متد خصوصی `newProcess` نسخهٔ ۱۳.۱.۵ را صدا می‌زند؛ این ساخت روی گوشی اجرا نشده است.
+
 ## 0.1.1 — 2026-11-24
 
 English

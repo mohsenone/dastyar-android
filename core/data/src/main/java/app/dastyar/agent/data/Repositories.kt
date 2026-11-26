@@ -45,6 +45,19 @@ class ChatRepository @Inject constructor(
         db.conversations().rename(id, title.trim().ifBlank { "…" }, System.currentTimeMillis())
     }
 
+    suspend fun get(id: String): ConversationEntity? = db.conversations().get(id)
+
+    suspend fun setModel(id: String, providerId: String?, model: String?) {
+        val existing = db.conversations().get(id) ?: return
+        db.conversations().upsert(
+            existing.copy(
+                providerId = providerId?.ifBlank { null },
+                modelOverride = model?.ifBlank { null },
+                updatedAt = System.currentTimeMillis(),
+            ),
+        )
+    }
+
     suspend fun pin(id: String, pinned: Boolean) = db.conversations().pin(id, pinned)
 
     suspend fun deleteConversation(id: String) {

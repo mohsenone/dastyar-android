@@ -4,10 +4,12 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.provider.Telephony
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import app.dastyar.agent.tools.AutomationGate
+import app.dastyar.agent.tools.RoutineTriggers
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.launch
 
@@ -61,6 +63,17 @@ class BootReceiver : BroadcastReceiver() {
                 pending.finish()
             }
         }
+    }
+}
+
+/** Incoming SMS can start a routine. It never sends a reply by itself. */
+class SmsTriggerReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent?) {
+        if (intent?.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+        val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
+        val from = messages.firstOrNull()?.displayOriginatingAddress.orEmpty()
+        val body = messages.joinToString("") { it.displayMessageBody.orEmpty() }
+        RoutineTriggers.onSms?.invoke(from, body)
     }
 }
 

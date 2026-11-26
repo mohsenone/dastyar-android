@@ -73,7 +73,12 @@ interface RunForeground {
 }
 
 fun shouldConfirm(risk: RiskLevel, routineUnattended: Boolean): Boolean =
-    risk != RiskLevel.SAFE && !routineUnattended
+    ConfirmPolicy.shouldConfirm(
+        risk,
+        ConfirmPolicy.Mode.SENSITIVE,
+        safetyFloor = false,
+        routineUnattended = routineUnattended,
+    )
 
 @Singleton
 class ConfirmationBus @Inject constructor() {
@@ -147,7 +152,10 @@ class AgentLoop @Inject constructor(
     }
 
     private suspend fun runLocked(request: AgentRequest, emit: suspend (AgentEvent) -> Unit) {
-        val lang = settings.current().language
+        val snap = settings.current()
+        val lang = snap.language
+        tools.applyPolicy(snap.disabledCategories, snap.disabledTools)
+        val confirmMode = ConfirmPolicy.parse(snap.confirmMode)
         if (AutomationGate.paused) {
             emit(AgentEvent.Failed(request.conversationId, paused(lang), false))
             return
@@ -231,7 +239,8 @@ class AgentLoop @Inject constructor(
                 }
                 val risk = riskFor(call)
                 emit(AgentEvent.ToolStarted(request.conversationId, call.name))
-                val approved = if (!shouldConfirm(risk, request.routineUnattended)) {
+                val floor = ConfirmPolicy.isSafetyFloor(call.name, call.arguments)
+                val approved = if (!ConfirmPolicy.shouldConfirm(risk, confirmMode, floor, request.routineUnattended)) {
                     true
                 } else {
                     confirm.confirm(
@@ -288,8 +297,13 @@ class AgentLoop @Inject constructor(
         conversationId: String,
         emit: suspend (AgentEvent) -> Unit,
     ): app.dastyar.agent.data.ProviderProfile? {
+        val conv = chats.get(conversationId)
         val profile = try {
-            providers.defaultProfile()
+            val picked = if (!conv?.providerId.isNullOrBlank()) providers.profile(conv!!.providerId!!) else null
+            (picked ?: providers.defaultProfile())?.let { base ->
+                val model = conv?.modelOverride?.takeIf { it.isNotBlank() } ?: base.model
+                base.copy(model = model)
+            }
         } catch (_: VaultLockedException) {
             val ok = authenticator.authenticate(unlock(lang))
             if (!ok) {
@@ -297,7 +311,11 @@ class AgentLoop @Inject constructor(
                 return null
             }
             try {
-                providers.defaultProfile()
+                val picked = if (!conv?.providerId.isNullOrBlank()) providers.profile(conv!!.providerId!!) else null
+                (picked ?: providers.defaultProfile())?.let { base ->
+                    val model = conv?.modelOverride?.takeIf { it.isNotBlank() } ?: base.model
+                    base.copy(model = model)
+                }
             } catch (error: Exception) {
                 emit(AgentEvent.Failed(conversationId, error.message ?: "vault", false))
                 return null
@@ -413,8 +431,10 @@ class AgentLoop @Inject constructor(
             UI language: $lang. Answer in Persian if the UI language is fa, and in English if it is en, unless the user writes in the other language.
             Tools can read and change the phone: messages, calls, calendar, files, camera, location, notifications, and other apps through accessibility after the user confirms.
             When SMS, WhatsApp, Gmail, accessibility, or notification access fails, call permissions_diagnostic and tell the user the next step in their language. On Android 13 and later, a sideloaded install needs Allow restricted settings (App info, three-dot menu) before SMS, call log, accessibility, and notification access will stick.
-            WhatsApp: send_whatsapp confirms the number and the full text. reply_notification answers a notification that already has a reply box. Email: compose_email opens Gmail or another mail app. There is no Gmail account login in this version. Read mail and chats from their notifications or from read_screen while that app is open.
-            operate_app opens an app by package or by its Persian or English launcher name, then runs confirmed taps, long-presses, typing, and scrolls. accessibility_action is the same step list when the app is already open.
+            WhatsApp: send_whatsapp confirms the number and the full text. reply_notification answers a notification that already has a reply box. Email: compose_email opens Gmail or another mail app. If the user connected Google in Connectors, google_gmail_search and google_gmail_send use the Gmail API; send still asks. Read mail and chats from their notifications, the API, or read_screen while that app is open.
+            operate_app opens an app by package or by its Persian or English launcher name, then runs confirmed taps, long-presses, typing, scrolls, and global actions. After each step the screen tree is read again. accessibility_action is the same step list when the app is already open. wait_for_element waits for text, a view id, or a content description.
+            Connectors (Google, GitHub, Telegram bot, Notion, webhook, web search, RSS, weather, MCP, Shizuku) only appear when the user enabled them. A missing token is an error, not success. Shizuku is optional. Do not claim a Wi-Fi, Bluetooth, or settings toggle worked if the tool only opened a system panel.
+            Sending messages, email, calls, deletes, and anything that leaves the phone still needs confirmation unless that routine was explicitly marked unattended.
             Never claim a tool ran unless its result is in the conversation. If a tool fails, say so.
             Do not ask for or repeat API keys. Saved facts:
             $facts

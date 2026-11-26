@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import app.dastyar.agent.data.ChatRepository
 import app.dastyar.agent.data.ConversationEntity
 import app.dastyar.agent.data.MessageEntity
+import app.dastyar.agent.data.ProviderEntity
+import app.dastyar.agent.data.ProviderRepository
 import app.dastyar.agent.data.SettingsStore
 import app.dastyar.agent.loop.AgentEvent
 import app.dastyar.agent.loop.AgentLoop
@@ -34,12 +36,14 @@ data class ChatUi(
     val attachments: List<String> = emptyList(),
     val query: String = "",
     val wantVoice: Boolean = false,
+    val providers: List<ProviderEntity> = emptyList(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chats: ChatRepository,
+    private val providers: ProviderRepository,
     private val settings: SettingsStore,
     private val loop: AgentLoop,
     private val voice: VoiceController,
@@ -62,6 +66,11 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             query.flatMapLatest { chats.search(it) }.collect { rows ->
                 _state.update { it.copy(conversations = rows) }
+            }
+        }
+        viewModelScope.launch {
+            providers.observe().collect { rows ->
+                _state.update { it.copy(providers = rows) }
             }
         }
     }
@@ -169,6 +178,11 @@ class ChatViewModel @Inject constructor(
     }
 
     fun stopSpeaking() = voice.stopSpeaking()
+
+    fun setChatModel(providerId: String?, model: String?) {
+        val id = _state.value.activeId ?: return
+        viewModelScope.launch { chats.setModel(id, providerId, model) }
+    }
 
     fun rename(id: String, title: String) {
         viewModelScope.launch { chats.rename(id, title) }

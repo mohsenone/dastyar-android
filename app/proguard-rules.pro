@@ -19,5 +19,11 @@
 -keep class app.dastyar.agent.RoutineAlarmReceiver { *; }
 -keep class app.dastyar.agent.ToolPauseReceiver { *; }
 -keep class app.dastyar.agent.BootReceiver { *; }
+-keep class app.dastyar.agent.SmsTriggerReceiver { *; }
+-keep class net.openid.appauth.** { *; }
+-keep class rikka.shizuku.** { *; }
+-keepclassmembers class rikka.shizuku.Shizuku {
+    private static rikka.shizuku.ShizukuRemoteProcess newProcess(java.lang.String[], java.lang.String[], java.lang.String);
+}
 -keep class app.dastyar.agent.RoutineKeepAliveWorker { *; }
 -keep class app.dastyar.agent.MainActivity { *; }

@@ -35,6 +35,28 @@ internal class AppActions(private val context: Context) {
         return "${match.first} (${match.second})"
     }
 
+    fun listInstalled(): List<Pair<String, String>> = launcherApps().distinctBy { it.second }.sortedBy { it.first.lowercase() }
+
+    fun openDeepLink(uri: String, packageName: String?): String? {
+        val parsed = runCatching { Uri.parse(uri) }.getOrNull() ?: return null
+        if (parsed.scheme.isNullOrBlank()) return null
+        val intent = Intent(Intent.ACTION_VIEW, parsed)
+        if (!packageName.isNullOrBlank()) intent.setPackage(packageName)
+        if (tryStart(intent)) return packageName ?: uri
+        if (!packageName.isNullOrBlank() && tryStart(Intent(Intent.ACTION_VIEW, parsed))) return uri
+        return null
+    }
+
+    fun openHttps(url: String, packageName: String?): String? {
+        val parsed = Uri.parse(url)
+        if (parsed.scheme !in setOf("https", "http")) return null
+        val intent = Intent(Intent.ACTION_VIEW, parsed)
+        if (!packageName.isNullOrBlank()) intent.setPackage(packageName)
+        if (tryStart(intent)) return packageName ?: url
+        if (!packageName.isNullOrBlank() && tryStart(Intent(Intent.ACTION_VIEW, parsed))) return url
+        return null
+    }
+
     fun openWhatsApp(digits: String, text: String): String? {
         val https = Uri.parse(WhatsAppLinks.waMe(digits, text))
         val scheme = Uri.parse(WhatsAppLinks.scheme(digits, text))

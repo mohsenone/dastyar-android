@@ -2,6 +2,8 @@ package app.dastyar.agent.chat
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +39,9 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -134,6 +140,7 @@ fun ChatScreen(
                     Icon(Icons.Outlined.Close, contentDescription = t(lang, "توقف صدا", "Stop speech"))
                 }
             }
+            ChatModelRow(state, vm)
             if (state.error != null) {
                 ErrorBanner(
                     message = state.error ?: "",
@@ -210,6 +217,46 @@ fun ChatScreen(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ChatModelRow(state: ChatUi, vm: ChatViewModel) {
+    val active = state.conversations.firstOrNull { it.id == state.activeId } ?: return
+    val lang = state.lang
+    var model by remember(active.id, active.modelOverride) { mutableStateOf(active.modelOverride.orEmpty()) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            t(lang, "مدل این گفتگو (پیش‌فرض سراسری عوض نمی‌شود)", "Model for this chat (the global default stays)"),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FilterChip(
+                selected = active.providerId.isNullOrBlank(),
+                onClick = { vm.setChatModel(null, model.ifBlank { null }) },
+                label = { Text(t(lang, "پیش‌فرض", "Default")) },
+            )
+            state.providers.forEach { provider ->
+                FilterChip(
+                    selected = active.providerId == provider.id,
+                    onClick = { vm.setChatModel(provider.id, model.ifBlank { null }) },
+                    label = { Text(provider.label.ifBlank { provider.kind }) },
+                )
+            }
+        }
+        OutlinedTextField(
+            value = model,
+            onValueChange = { model = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text(t(lang, "شناسهٔ مدل (اختیاری)", "Model id (optional)")) },
+            trailingIcon = {
+                TextButton(onClick = { vm.setChatModel(active.providerId, model) }) {
+                    Text(t(lang, "اعمال", "Apply"))
+                }
+            },
+        )
     }
 }
 

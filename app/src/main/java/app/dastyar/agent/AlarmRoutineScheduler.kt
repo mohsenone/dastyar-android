@@ -43,6 +43,10 @@ class AlarmRoutineScheduler @Inject constructor(
     }
 
     private fun arm(routine: RoutineEntity) {
+        if (routine.triggerKind != "schedule") {
+            cancel(routine.id)
+            return
+        }
         val alarm = context.getSystemService(AlarmManager::class.java)
         val whenMs = next(routine.hour, routine.minute)
         val pi = pending(routine.id)

@@ -43,4 +43,5 @@ dependencies {
     implementation(project(":feature:tools"))
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
+    testImplementation(libs.json)
 }

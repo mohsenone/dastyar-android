@@ -23,6 +23,10 @@ data class SettingsSnapshot(
     val webAllowlist: String = "",
     val activeConversationId: String? = null,
     val a11yDisclosed: Boolean = false,
+    /** always, sensitive, or auto. Default is sensitive. */
+    val confirmMode: String = "sensitive",
+    val disabledCategories: String = "",
+    val disabledTools: String = "",
 )
 
 @Singleton
@@ -57,6 +61,12 @@ class SettingsStore @Inject constructor(
 
     suspend fun setA11yDisclosed(done: Boolean) = edit { it[A11Y] = done }
 
+    suspend fun setConfirmMode(mode: String) = edit { it[CONFIRM] = mode }
+
+    suspend fun setDisabledCategories(value: String) = edit { it[CATEGORIES] = value }
+
+    suspend fun setDisabledTools(value: String) = edit { it[TOOLS] = value }
+
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         store.edit(block)
     }
@@ -70,6 +80,9 @@ class SettingsStore @Inject constructor(
         webAllowlist = this[ALLOWLIST] ?: "",
         activeConversationId = this[ACTIVE],
         a11yDisclosed = this[A11Y] ?: false,
+        confirmMode = this[CONFIRM] ?: "sensitive",
+        disabledCategories = this[CATEGORIES] ?: "",
+        disabledTools = this[TOOLS] ?: "",
     )
 
     private companion object {
@@ -81,5 +94,8 @@ class SettingsStore @Inject constructor(
         val ALLOWLIST = stringPreferencesKey("web_allowlist")
         val ACTIVE = stringPreferencesKey("active_conversation")
         val A11Y = booleanPreferencesKey("a11y_disclosed")
+        val CONFIRM = stringPreferencesKey("confirm_mode")
+        val CATEGORIES = stringPreferencesKey("disabled_categories")
+        val TOOLS = stringPreferencesKey("disabled_tools")
     }
 }

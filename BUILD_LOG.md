@@ -45,3 +45,17 @@
 - APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.1.1/app-release.apk (2,699,585 bytes, state uploaded). `aapt dump badging` reports `versionCode='2'` and `versionName='0.1.1'`, package `app.dastyar.agent`. `apksigner verify` succeeded with APK Signature Scheme v2 and certificate CN=Dastyar.
 - Unit tests before the signed assemble: `:feature:tools:testDebugUnitTest`, `:feature:agent:testDebugUnitTest`, `:core:network:testDebugUnitTest`.
 - Nothing was sent to Telegram from this machine. The tag workflow (run 45420199885) finished successfully. Its Telegram step logged `TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is absent. Skipping Telegram upload.` The release APK stayed `app-release.apk` at 2,699,585 bytes. CI replaced the release body with the generic workflow text; the bilingual restricted-settings / WhatsApp / Gmail notes were written back with `gh release edit`.
+
+## 2026-11-26 — v0.2.0
+
+- `versionCode` 3, `versionName` 0.2.0. New module `:feature:connectors`.
+- Connectors: Google OAuth (AppAuth PKCE, redirect scheme `app.dastyar.agent`, placeholder `appAuthRedirectScheme`), GitHub PAT, Telegram Bot API (text and a file already in app storage), Notion, webhook with the web allowlist, Tavily / Brave / SearXNG, RSS, Open-Meteo or OpenWeather, remote MCP (Streamable HTTP, one-shot SSE fallback), optional Shizuku 13.1.5 via reflection on private `newProcess`. Secrets stay in the Keystore vault. A connector that is off contributes no tools. Status is connected only after a token or a successful test.
+- Device control: capped accessibility tree, wait-for-element, global actions, observe loop with optional accessibility screenshot, helpers for WhatsApp, the Telegram app, Gmail, Instagram, and Chrome, media session, volume, brightness, DND, and system panels for Wi-Fi and Bluetooth. Silent radio toggles are not claimed.
+- Dastyar control: tool categories and individual tool names, confirmation modes with a safety floor (send, email, call, delete, pay, and similar still ask in auto), audit time and denied/done/failed, per-chat provider and model, routines on a clock or on SMS or a notification (WorkManager keep-alive unchanged; exact alarms only for clock triggers).
+- Release certificate SHA-1 (public fingerprint, for an Android OAuth client): `F2:EA:B9:74:BA:09:9E:B2:5A:0B:97:0D:15:6F:88:AE:BF:5F:D9:50`.
+- Unit tests: `:feature:connectors:testDebugUnitTest`, `:feature:agent:testDebugUnitTest`, `:feature:tools:testDebugUnitTest`, `:core:network:testDebugUnitTest`. `:app:assembleRelease` signed with the existing keystore outside git. `apksigner verify` reports APK Signature Scheme v2 and CN=Dastyar. `aapt dump badging` reports package `app.dastyar.agent`, `versionCode` 3, `versionName` 0.2.0. No emulator run.
+- Partial on purpose: Google verification for sensitive scopes; Drive and Contacts depend on the extra-scopes switch; Instagram is intents plus `operate_app`; the Telegram app is not MTProto; MCP SSE is per call and `tools/list` is one page; Shizuku is reflection on a private method; webhook Test connection checks that a URL is set and does not POST; this server did not upload the APK to Telegram.
+
+### Publish
+
+- URLs are filled in after `gh release view v0.2.0` shows the APK.

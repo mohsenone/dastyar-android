@@ -28,4 +28,5 @@ include(
     ":feature:settings",
     ":feature:tools",
     ":feature:voice",
+    ":feature:connectors",
 )

@@ -18,6 +18,8 @@ data class ConversationEntity(
     val pinned: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val providerId: String? = null,
+    val modelOverride: String? = null,
 )
 
 @Entity(
@@ -67,6 +69,9 @@ data class RoutineEntity(
     val enabled: Boolean,
     val allowUnattended: Boolean,
     val createdAt: Long,
+    /** schedule, sms, or notification. */
+    val triggerKind: String = "schedule",
+    val triggerFilter: String = "",
 )
 
 @Entity(tableName = "providers")
@@ -238,7 +243,7 @@ interface ProviderDao {
         RoutineEntity::class,
         ProviderEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class DastyarDatabase : RoomDatabase() {

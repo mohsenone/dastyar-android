@@ -14,6 +14,13 @@ class DastyarNotificationListener : NotificationListenerService() {
         instance = this
     }
 
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        if (sbn == null) return
+        val title = sbn.notification.extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
+        val text = sbn.notification.extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
+        RoutineTriggers.onNotification?.invoke(sbn.packageName, title, text)
+    }
+
     override fun onListenerDisconnected() {
         if (instance === this) instance = null
     }

@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
@@ -65,6 +66,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import app.dastyar.agent.chat.ChatScreen
 import app.dastyar.agent.chat.ChatViewModel
+import app.dastyar.agent.connectors.ConnectorsScreen
 import app.dastyar.agent.data.SettingsStore
 import app.dastyar.agent.loop.ConfirmationBus
 import app.dastyar.agent.providers.ProvidersScreen
@@ -281,7 +283,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 LaunchedEffect(route) {
-                    if (route == "providers") {
+                    if (route == "providers" || route == "connectors") {
                         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
                     } else {
                         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -365,8 +367,9 @@ class MainActivity : AppCompatActivity() {
                             NavigationBar {
                                 NavItem(nav, route, "chat", t(lang, "گفتگو", "Chat"), Icons.AutoMirrored.Outlined.Chat)
                                 NavItem(nav, route, "providers", t(lang, "کلیدها", "Providers"), Icons.Outlined.Key)
-                                NavItem(nav, route, "routines", t(lang, "روال‌ها", "Routines"), Icons.Outlined.Schedule)
-                                NavItem(nav, route, "settings", t(lang, "تنظیمات", "Settings"), Icons.Outlined.Settings)
+                                NavItem(nav, route, "connectors", t(lang, "اتصال", "Links"), Icons.Outlined.Hub)
+                                NavItem(nav, route, "routines", t(lang, "روال", "Routines"), Icons.Outlined.Schedule)
+                                NavItem(nav, route, "settings", t(lang, "تنظیم", "Settings"), Icons.Outlined.Settings)
                             }
                         }
                     },
@@ -425,6 +428,9 @@ class MainActivity : AppCompatActivity() {
                             )
                         }
                         composable("providers") { ProvidersScreen() }
+                        composable("connectors") {
+                            ConnectorsScreen(onPermissions = { nav.navigate("permissions?onboarding=0") })
+                        }
                         composable("routines") { RoutinesScreen(settingsVm, onExactAlarm = ui::openExactAlarmSettings) }
                         composable("settings") {
                             SettingsScreen(
@@ -436,6 +442,7 @@ class MainActivity : AppCompatActivity() {
                                 onMemories = { nav.navigate("memories") },
                                 onDisclosure = { nav.navigate("disclosure") },
                                 onPermissions = { nav.navigate("permissions?onboarding=0") },
+                                onConnectors = { nav.navigate("connectors") },
                                 onPickFolder = {
                                     scope.launch { ui.pickDirectory() }
                                 },
@@ -688,7 +695,7 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_NEW_CHAT = "app.dastyar.agent.NEW_CHAT"
         const val ACTION_VOICE = "app.dastyar.agent.VOICE"
         const val ACTION_ROUTINE = "app.dastyar.agent.ROUTINE"
-        private val TOP = setOf("chat", "providers", "routines", "settings")
+        private val TOP = setOf("chat", "providers", "connectors", "routines", "settings")
         private var pendingPhoto: String? = null
         private var pendingVideo: String? = null
 

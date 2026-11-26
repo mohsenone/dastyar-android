@@ -55,6 +55,66 @@ interface ToolExecutor {
     fun riskOf(name: String): RiskLevel
     fun summary(name: String, argsJson: String, lang: String): String
     suspend fun execute(name: String, argsJson: String, ctx: ToolContext): ToolResult
+    fun applyPolicy(disabledCategories: String, disabledTools: String) {}
+}
+
+/** A tool contributed by an enabled connector. Omitted entirely when that connector is off. */
+data class DynamicTool(
+    val spec: ToolSpec,
+    val risk: RiskLevel,
+    val confirm: (JSONObject, String) -> String,
+    val run: suspend (JSONObject, ToolContext) -> ToolResult,
+)
+
+interface DynamicToolSource {
+    fun current(): List<DynamicTool>
+}
+
+object ToolCategories {
+    val ALL = listOf(
+        "device",
+        "messaging",
+        "phone",
+        "files",
+        "media",
+        "location",
+        "accessibility",
+        "web",
+        "memory",
+        "routines",
+        "apps",
+        "connectors",
+    )
+
+    fun of(name: String): String = when {
+        name.startsWith("mcp_") ||
+            name.startsWith("google_") ||
+            name.startsWith("github_") ||
+            name.startsWith("notion_") ||
+            name.startsWith("telegram_bot") ||
+            name.startsWith("rss_") ||
+            name.startsWith("shizuku_") ||
+            name == "web_search" ||
+            name == "webhook_request" ||
+            name == "weather" -> "connectors"
+        name in setOf(
+            "read_sms", "send_sms", "list_notifications", "dismiss_notification", "reply_notification",
+            "read_whatsapp_notifications", "read_email_notifications", "send_whatsapp",
+        ) -> "messaging"
+        name in setOf("dial", "place_call", "call_log", "search_contacts", "write_contact") -> "phone"
+        name in setOf("list_files", "read_file", "write_file", "delete_file", "open_all_files_settings") -> "files"
+        name in setOf("take_photo", "take_video", "capture_screen") -> "media"
+        name == "location" -> "location"
+        name in setOf("read_screen", "accessibility_action", "operate_app", "wait_for_element") -> "accessibility"
+        name in setOf("web_fetch", "open_url") -> "web"
+        name in setOf("save_memory", "list_memories", "delete_memory", "search_chats") -> "memory"
+        name == "create_routine" -> "routines"
+        name in setOf(
+            "open_app", "list_installed_apps", "open_deep_link",
+            "app_telegram", "app_instagram", "app_chrome", "app_gmail", "app_whatsapp",
+        ) -> "apps"
+        else -> "device"
+    }
 }
 
 internal fun bi(lang: String, fa: String, en: String): String = if (lang.startsWith("fa")) fa else en

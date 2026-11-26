@@ -44,6 +44,9 @@ data class SettingsUi(
     val message: String? = null,
     val onboardingDone: Boolean = false,
     val a11yDisclosed: Boolean = false,
+    val confirmMode: String = "sensitive",
+    val disabledCategories: String = "",
+    val disabledTools: String = "",
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -77,6 +80,9 @@ class SettingsViewModel @Inject constructor(
                         saf = snap.safTreeUri,
                         onboardingDone = snap.onboardingDone,
                         a11yDisclosed = snap.a11yDisclosed,
+                        confirmMode = snap.confirmMode,
+                        disabledCategories = snap.disabledCategories,
+                        disabledTools = if (it.disabledTools == snap.disabledTools || it.disabledTools.isEmpty()) snap.disabledTools else it.disabledTools,
                         hardware = runCatching { vault.hardwareBacked() }.getOrDefault(false),
                     )
                 }
@@ -125,6 +131,23 @@ class SettingsViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun setConfirmMode(mode: String) {
+        viewModelScope.launch { settings.setConfirmMode(mode) }
+    }
+
+    fun setCategoryEnabled(category: String, enabled: Boolean) {
+        val current = _state.value.disabledCategories.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toMutableSet()
+        if (enabled) current.remove(category) else current.add(category)
+        val joined = current.joinToString(",")
+        _state.update { it.copy(disabledCategories = joined) }
+        viewModelScope.launch { settings.setDisabledCategories(joined) }
+    }
+
+    fun setDisabledTools(value: String) {
+        _state.update { it.copy(disabledTools = value) }
+        viewModelScope.launch { settings.setDisabledTools(value) }
     }
 
     fun setAllowlist(value: String) {
@@ -177,8 +200,18 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { chats.deleteAll() }
     }
 
-    fun addRoutine(title: String, prompt: String, hour: Int, minute: Int, daily: Boolean, unattended: Boolean) {
+    fun addRoutine(
+        title: String,
+        prompt: String,
+        hour: Int,
+        minute: Int,
+        daily: Boolean,
+        unattended: Boolean,
+        triggerKind: String = "schedule",
+        triggerFilter: String = "",
+    ) {
         if (prompt.isBlank()) return
+        val kind = if (triggerKind in setOf("schedule", "sms", "notification")) triggerKind else "schedule"
         viewModelScope.launch {
             val id = UUID.randomUUID().toString()
             routines.save(
@@ -192,6 +225,8 @@ class SettingsViewModel @Inject constructor(
                     enabled = true,
                     allowUnattended = unattended,
                     createdAt = System.currentTimeMillis(),
+                    triggerKind = kind,
+                    triggerFilter = triggerFilter.trim().take(120),
                 ),
             )
             scheduler.schedule(id)

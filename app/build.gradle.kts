@@ -16,9 +16,10 @@ android {
         applicationId = "app.dastyar.agent"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.2.0"
         vectorDrawables.useSupportLibrary = true
+        manifestPlaceholders["appAuthRedirectScheme"] = "app.dastyar.agent"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -105,6 +106,7 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:tools"))
     implementation(project(":feature:voice"))
+    implementation(project(":feature:connectors"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

@@ -21,7 +21,7 @@ On Android 13 and later, a sideloaded APK cannot turn on Accessibility, notifica
 5. Return to Permissions and turn on SMS, Accessibility (after the disclosure), and notification access.
 6. On Android 15 the ⋮ item can stay hidden until you try the blocked switch once more.
 
-Official Gmail API sign-in is not in this version. Mail opens in Gmail or another email app. WhatsApp opens through `wa.me`. Sending still asks you first.
+Mail can still open in the Gmail app or another email app. WhatsApp opens through `wa.me`. Sending still asks you first. Version 0.2.0 also has an optional Google sign-in under Connectors; see below. It is not a fake login, and some scopes need Google’s own verification.
 
 ## Add a key
 
@@ -67,7 +67,48 @@ The audit log in Settings can be filtered, exported, and deleted. It stores a sh
 
 Speech recognition and text-to-speech use the engines installed on the phone, for Persian and English when those voices exist. Stop speech from the chat bar. If Persian recognition is missing, the error says so and English is the fallback for speech output.
 
-Conversations can be pinned, renamed, and searched. Saved facts are a list the model can read and write. This version does not bundle an embedding model or Gemini Nano / a GGUF file. Settings explains that, and you can still save facts by hand.
+Conversations can be pinned, renamed, and searched. Each chat can use its own provider and model id without changing the global default. Saved facts are a list the model can read and write. This version does not bundle an embedding model or Gemini Nano / a GGUF file. Settings explains that, and you can still save facts by hand.
+
+## Connectors (0.2.0)
+
+Open **Links** in the bottom bar, or **Connectors** in Settings. A connector that is off adds no tools. **Connected** means a real sign-in or a successful test, not a placeholder. Secrets stay in the same Keystore vault as LLM keys. They are not Room columns and they are not written to the audit log. The Connectors screen blocks screenshots.
+
+| Connector | What you paste | Official page |
+|---|---|---|
+| Google | OAuth client id. A client secret is optional and only for a confidential/dev client. Prefer an Android or installed-app client with PKCE. | https://console.cloud.google.com/apis/credentials |
+| GitHub | Personal access token (classic or fine-grained) | https://github.com/settings/tokens |
+| Telegram bot | Bot token from BotFather. This is the **bot** API, not your personal Telegram account. | https://t.me/BotFather |
+| Notion | Internal integration token | https://www.notion.so/my-integrations |
+| Web search | Tavily key, Brave Search key, or a SearXNG base URL | https://tavily.com/ · https://brave.com/search/api/ · https://docs.searxng.org/ |
+| Weather | Nothing for Open-Meteo. OpenWeather only if you choose that provider and paste a key. Prices are on their site; this app does not state them. | https://open-meteo.com/ · https://openweathermap.org/api |
+| RSS | Feed URLs. No secret. | — |
+| Webhook | A URL, plus an optional header secret. HTTP is allowed only when that host is on the web allowlist. | — |
+| MCP | One or more remote server URLs (Streamable HTTP, with SSE as a fallback) and an optional bearer token. | https://modelcontextprotocol.io/specification/2025-03-26 |
+| Shizuku | Optional. Install and authorize it yourself. Dastyar does not require it and does not root the phone. | https://shizuku.rikka.app/introduction/ |
+
+### Google Cloud Console
+
+1. Create a project and enable the Gmail API and the Google Calendar API. Enable Drive and People only if you turn on the extra-scopes switch.
+2. Create an OAuth client. For an Android client, the package name is `app.dastyar.agent` and the SHA-1 is the certificate of the APK you installed. The v0.2.0 release certificate SHA-1 is `F2:EA:B9:74:BA:09:9E:B2:5A:0B:97:0D:15:6F:88:AE:BF:5F:D9:50`. The Connectors screen also shows the SHA-1 of whatever build is installed. The redirect URI is `app.dastyar.agent://oauth2redirect`.
+3. Google’s **Web** client type often rejects a custom-scheme redirect. If the token endpoint returns an error, the connector stays in an error state. It does not pretend to be signed in.
+4. `gmail.send`, Drive, and Contacts can require Google’s app verification before they work for accounts other than the test users you added. The app says so in the guide and returns the API error instead of hiding it.
+5. Requested by default: `openid`, `email`, `profile`, `gmail.readonly`, `gmail.send`, `calendar`. Drive and Contacts are off until you opt in.
+
+Gmail read/search and confirmed send, and Calendar list/create/update/delete, call the real APIs after a successful token exchange. Drive list/download/upload and Contacts read/write are implemented and depend on the granted scopes. Upload, send, update, and delete still ask you first.
+
+### MCP, search, and device control
+
+On enable, Dastyar initializes the MCP server, lists tools, and registers them as `mcp_<server>_<tool>`. A call goes over that session and the text comes back to the agent. Streamable HTTP is tried first. If the server answers 404, 405, or 400, one SSE request is used for that call. There is no permanent SSE socket, and `tools/list` pagination is a single page.
+
+Settings has three confirmation modes: always, sensitive (the default), and auto. Auto still asks before a message, email, call, delete, payment, or anything else that leaves the phone or destroys data. The only opt-out is the per-routine **Act without asking** switch, which is off by default.
+
+Tool categories (and individual tool names) can be turned off. Disabled tools are left out of the model’s list.
+
+Routines can run at a clock time, on an incoming SMS, or when a notification arrives. A filter is an optional substring. Triggers still obey the confirmation policy. The notification listener and SMS permission are the same ones already on the Permissions screen.
+
+Accessibility can dump a capped screen tree, wait for an element, scroll, swipe, and use global actions (back, home, recents, notifications, quick settings, screenshot on newer Android, lock screen when the platform allows it). After each step of a multi-step plan the tree is read again. A screenshot from the accessibility service can be attached when the model accepts images. Pause and the single confirmation sheet are unchanged.
+
+Helpers for WhatsApp, the Telegram **app** (`org.telegram.messenger` and the official variants), Gmail, Instagram, and Chrome open the right screen. Vendor UIs change; the tool text says when a send is only best-effort and when you should use `operate_app`. Media, volume, brightness, and Do Not Disturb change when Android still allows it. Wi-Fi and Bluetooth on Android 10+ open the system panel and do not claim the radio toggled. Shizuku tools (`settings` get/put, `pm` grant/revoke, start or force-stop a named component) appear only when that connector is on, and each one is confirmed.
 
 ## Build
 

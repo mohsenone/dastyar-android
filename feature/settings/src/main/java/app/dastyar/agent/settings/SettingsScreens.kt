@@ -2,6 +2,8 @@ package app.dastyar.agent.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,8 +31,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.dastyar.agent.data.AuditEntity
+import app.dastyar.agent.tools.ToolCategories
 import app.dastyar.agent.ui.SectionCard
 import app.dastyar.agent.ui.t
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 @Composable
@@ -86,6 +93,7 @@ fun SettingsScreen(
     onDisclosure: () -> Unit,
     onPermissions: () -> Unit,
     onPickFolder: () -> Unit,
+    onConnectors: () -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
@@ -104,6 +112,36 @@ fun SettingsScreen(
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(t(lang, "توقف همهٔ ابزارها", "Pause all tools"), modifier = Modifier.weight(1f))
             Switch(checked = state.paused, onCheckedChange = vm::setPaused)
+        }
+        Text(t(lang, "تأیید عمل‌ها", "Confirmation"), style = MaterialTheme.typography.titleMedium)
+        Text(
+            t(
+                lang,
+                "حالت خودکار هم فرستادن پیام، ایمیل، تماس، حذف، پرداخت و هر چیزی که از گوشی بیرون می‌رود را می‌پرسد. روالِ «بدون پرسش» تنها استثناست و پیش‌فرضش خاموش است.",
+                "Auto still asks before a message, email, call, delete, payment, or anything that leaves the phone. An unattended routine is the only exception, and it is off by default.",
+            ),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = state.confirmMode == "always", onClick = { vm.setConfirmMode("always") }, label = { Text(t(lang, "همیشه", "Always")) })
+            FilterChip(selected = state.confirmMode != "always" && state.confirmMode != "auto", onClick = { vm.setConfirmMode("sensitive") }, label = { Text(t(lang, "حساس", "Sensitive")) })
+            FilterChip(selected = state.confirmMode == "auto", onClick = { vm.setConfirmMode("auto") }, label = { Text(t(lang, "خودکار", "Auto")) })
+        }
+        Text(t(lang, "دسته‌های ابزار", "Tool categories"), style = MaterialTheme.typography.titleMedium)
+        Text(
+            t(lang, "دستهٔ خاموش به مدل داده نمی‌شود.", "A category that is off is omitted from the model."),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        CategoryToggles(lang, state.disabledCategories, vm::setCategoryEnabled)
+        OutlinedTextField(
+            value = state.disabledTools,
+            onValueChange = vm::setDisabledTools,
+            label = { Text(t(lang, "ابزارهای خاموش", "Disabled tools")) },
+            supportingText = { Text(t(lang, "نام ابزارها با ویرگول. خالی یعنی همهٔ دسته‌های روشن.", "Tool names separated by commas. Empty means every enabled category.")) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Button(onClick = onConnectors, modifier = Modifier.fillMaxWidth()) {
+            Text(t(lang, "اتصال‌ها", "Connectors"))
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
@@ -162,6 +200,38 @@ fun SettingsScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryToggles(lang: String, disabled: String, onChange: (String, Boolean) -> Unit) {
+    val off = disabled.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ToolCategories.ALL.forEach { category ->
+            val label = categoryLabel(lang, category)
+            FilterChip(
+                selected = category !in off,
+                onClick = { onChange(category, category in off) },
+                label = { Text(label) },
+            )
+        }
+    }
+}
+
+private fun categoryLabel(lang: String, category: String): String = when (category) {
+    "device" -> t(lang, "دستگاه", "Device")
+    "messaging" -> t(lang, "پیام", "Messages")
+    "phone" -> t(lang, "تلفن", "Phone")
+    "files" -> t(lang, "فایل", "Files")
+    "media" -> t(lang, "رسانه", "Media")
+    "location" -> t(lang, "موقعیت", "Location")
+    "accessibility" -> t(lang, "دسترس‌پذیری", "Accessibility")
+    "web" -> t(lang, "وب", "Web")
+    "memory" -> t(lang, "حافظه", "Memory")
+    "routines" -> t(lang, "روال", "Routines")
+    "apps" -> t(lang, "برنامه‌ها", "Apps")
+    "connectors" -> t(lang, "اتصال‌ها", "Connectors")
+    else -> category
+}
+
 @Composable
 fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -172,22 +242,26 @@ fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit) {
     var minute by remember { mutableStateOf("0") }
     var daily by remember { mutableStateOf(true) }
     var unattended by remember { mutableStateOf(false) }
+    var trigger by remember { mutableStateOf("schedule") }
+    var filter by remember { mutableStateOf("") }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(t(lang, "روال‌ها", "Routines"), style = MaterialTheme.typography.headlineSmall)
         Text(
-            t(lang, "روال در پس‌زمینه با یک خدمت پیش‌زمینه اجرا می‌شود و اعلان «دستیار در حال اجرای روال است» را نشان می‌دهد. پیامک، تماس و خودکارسازی برنامه همچنان تأیید می‌خواهند مگر این کلید را روشن کنید. پیش‌فرض خاموش است.", "A routine runs in the background with a foreground service and the notification “Dastyar is running a routine”. SMS, calls, and other-app automation still ask unless you turn this on. The default is off."),
+            t(lang, "روال در پس‌زمینه با یک خدمت پیش‌زمینه اجرا می‌شود و اعلان «دستیار در حال اجرای روال است» را نشان می‌دهد. زمان‌بندی، پیامک ورودی، یا یک اعلان می‌تواند آن را شروع کند. پیامک، تماس و خودکارسازی برنامه همچنان تأیید می‌خواهند مگر این کلید را روشن کنید. پیش‌فرض خاموش است. فرستادن، حذف و تماس حتی در حالت خودکار تأیید می‌خواهند مگر همین کلید روشن باشد.", "A routine runs in the background with a foreground service and the notification “Dastyar is running a routine”. A clock, an incoming SMS, or a notification can start it. SMS, calls, and other-app automation still ask unless you turn this on. The default is off. Sends, deletes, and calls still confirm in auto mode unless this switch is on."),
         )
         TextButton(onClick = onExactAlarm) { Text(t(lang, "اجازهٔ زنگ دقیق", "Allow exact alarms")) }
         state.routines.forEach { routine ->
             SectionCard(
                 title = routine.title,
-                body = "%02d:%02d · %s\n%s".format(
+                body = "%s · %02d:%02d · %s\n%s\n%s".format(
+                    triggerLabel(lang, routine.triggerKind),
                     routine.hour,
                     routine.minute,
                     if (routine.allowUnattended) t(lang, "بدون پرسش", "unattended") else t(lang, "با تأیید", "asks first"),
+                    routine.triggerFilter.ifBlank { "" },
                     routine.prompt,
                 ),
                 footer = {
@@ -205,20 +279,35 @@ fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit) {
             OutlinedTextField(hour, { hour = it.filter(Char::isDigit).take(2) }, label = { Text(t(lang, "ساعت", "Hour")) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
             OutlinedTextField(minute, { minute = it.filter(Char::isDigit).take(2) }, label = { Text(t(lang, "دقیقه", "Minute")) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = trigger == "schedule", onClick = { trigger = "schedule" }, label = { Text(t(lang, "ساعت", "Clock")) })
+            FilterChip(selected = trigger == "sms", onClick = { trigger = "sms" }, label = { Text(t(lang, "پیامک", "SMS")) })
+            FilterChip(selected = trigger == "notification", onClick = { trigger = "notification" }, label = { Text(t(lang, "اعلان", "Notification")) })
+        }
+        if (trigger != "schedule") {
+            OutlinedTextField(
+                filter,
+                { filter = it },
+                label = { Text(t(lang, "فیلتر (اختیاری)", "Filter (optional)")) },
+                supportingText = { Text(t(lang, "فقط اگر متن پیامک یا اعلان این عبارت را داشته باشد.", "Runs only when the SMS or notification contains this text.")) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(daily, { daily = it })
-            Text(t(lang, "هر روز", "Every day"))
+            Text(if (trigger == "schedule") t(lang, "هر روز", "Every day") else t(lang, "ادامه بدهد", "Keep listening"))
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(unattended, { unattended = it })
             Text(t(lang, "بدون پرسش عمل کند (خطرناک)", "Act without asking (dangerous)"))
         }
         Button(onClick = {
-            vm.addRoutine(title, prompt, hour.toIntOrNull() ?: 8, minute.toIntOrNull() ?: 0, daily, unattended)
+            vm.addRoutine(title, prompt, hour.toIntOrNull() ?: 8, minute.toIntOrNull() ?: 0, daily, unattended, trigger, filter)
             title = ""
             prompt = ""
+            filter = ""
             unattended = false
-        }) { Text(t(lang, "زمان‌بندی", "Schedule")) }
+        }) { Text(t(lang, "افزودن", "Add")) }
     }
 }
 
@@ -227,11 +316,25 @@ fun AuditScreen(vm: SettingsViewModel, onExport: suspend (String) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
     val scope = rememberCoroutineScope()
+    var outcome by remember { mutableStateOf("all") }
+    val rows = state.audit.filter { row ->
+        val denied = isDenied(row)
+        when (outcome) {
+            "ok" -> row.success && !denied
+            "fail" -> !row.success && !denied
+            "denied" -> denied
+            else -> true
+        }
+    }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(t(lang, "گزارش ابزارها", "Tool audit"), style = MaterialTheme.typography.headlineSmall)
+        Text(
+            t(lang, "زمان، ابزار، نتیجه و آرگومان‌های سانسورشده. رمز در گزارش نوشته نمی‌شود.", "Time, tool, result, and redacted arguments. Tokens are not written here."),
+            style = MaterialTheme.typography.bodySmall,
+        )
         OutlinedTextField(
             value = state.auditTool,
             onValueChange = vm::setAuditTool,
@@ -244,14 +347,43 @@ fun AuditScreen(vm: SettingsViewModel, onExport: suspend (String) -> Unit) {
             FilterChip(selected = state.auditSuccess == true, onClick = { vm.setAuditSuccess(true) }, label = { Text(t(lang, "موفق", "Ok")) })
             FilterChip(selected = state.auditSuccess == false, onClick = { vm.setAuditSuccess(false) }, label = { Text(t(lang, "ناموفق", "Failed")) })
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = outcome == "all", onClick = { outcome = "all" }, label = { Text(t(lang, "نتیجه: همه", "Outcome: all")) })
+            FilterChip(selected = outcome == "ok", onClick = { outcome = "ok" }, label = { Text(t(lang, "انجام شد", "Done")) })
+            FilterChip(selected = outcome == "denied", onClick = { outcome = "denied" }, label = { Text(t(lang, "رد شد", "Denied")) })
+            FilterChip(selected = outcome == "fail", onClick = { outcome = "fail" }, label = { Text(t(lang, "خطا", "Error")) })
+        }
         Row {
             TextButton(onClick = { scope.launch { onExport(vm.exportAudit()) } }) { Text(t(lang, "خروجی", "Export")) }
             TextButton(onClick = vm::deleteAudit) { Text(t(lang, "پاک کردن", "Delete")) }
         }
-        state.audit.take(200).forEach { row ->
-            Text("${row.toolName} · ${if (row.success) "ok" else "fail"} · ${row.risk}\n${row.argsSummary}\n${row.resultSummary}", style = MaterialTheme.typography.bodySmall)
+        rows.take(200).forEach { row ->
+            Text(
+                "${auditTime(row.createdAt)} · ${row.toolName} · ${auditOutcome(lang, row)} · ${row.risk}\n${row.argsSummary}\n${row.resultSummary}",
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
+}
+
+private fun isDenied(row: AuditEntity): Boolean {
+    val text = row.resultSummary
+    return text.contains("denied", true) || text.contains("رد شد") || text.contains("رد کرد")
+}
+
+private fun auditOutcome(lang: String, row: AuditEntity): String = when {
+    isDenied(row) -> t(lang, "رد شد", "Denied")
+    row.success -> t(lang, "انجام شد", "Done")
+    else -> t(lang, "ناموفق", "Failed")
+}
+
+private fun auditTime(millis: Long): String =
+    SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(millis))
+
+private fun triggerLabel(lang: String, kind: String): String = when (kind) {
+    "sms" -> t(lang, "پیامک", "SMS")
+    "notification" -> t(lang, "اعلان", "Notification")
+    else -> t(lang, "ساعت", "Clock")
 }
 
 @Composable
