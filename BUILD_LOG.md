@@ -73,4 +73,10 @@
 
 ### Publish
 
-- Pending: unit tests, signed `assembleRelease`, `apksigner verify`, commit, annotated tag `v0.2.1`, GitHub Release. URLs will be appended after `gh release view`.
+- Commit: `3ee31a2` — Ship Dastyar 0.2.1 with a chat provider and model picker.
+- Annotated tag `v0.2.1` points at that commit. This follow-up only records the URLs. The tag was not moved.
+- Release: https://github.com/mohsenone/dastyar-android/releases/tag/v0.2.1
+- APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.2.1/app-release.apk (2,919,453 bytes, state uploaded). A locally signed APK of the same size was attached first so the release was not empty. Workflow run [45806096496](https://github.com/mohsenone/dastyar-android/actions/runs/45806096496) then published `app-release.apk` and replaced the asset list. The two files are the same size and the same signing certificate. Their zip hashes differ because Actions rebuilt the APK.
+- `aapt dump badging` on the release asset reports `versionCode` 4 and `versionName` 0.2.1, package `app.dastyar.agent`, compileSdk 35, minSdk 26, targetSdk 35. `apksigner verify` succeeded with APK Signature Scheme v2. Certificate DN is `CN=Dastyar, OU=Mobile, O=Dastyar, C=IR`. SHA-1 `f2eab974ba099eb25a0b970d156f88aebf5fd950`. SHA-256 `9796073f30fec3e58e3fb9931103815b0205caa4060a4adc53fbc2b9ab19e453`. That is the same certificate as v0.2.0.
+- Unit-test XML on this machine: 49 tests, 0 failures, 0 errors (ModelCatalogTest 15, SseParserTest 4, ConfirmPolicyTest 5, ConnectorLogicTest 7, MessagingLinksTest 5, PermissionDiagnosticsTest 4, RemoteInputSelectionTest 3, RestrictedSettingsTest 6). This server has no emulator. The APK was not installed on a phone.
+- Nothing was sent to Telegram from this machine. The tag workflow finished successfully. Its Telegram step logged `TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is absent. Skipping Telegram upload.` Actions replaced the release body with the generic workflow text. The bilingual picker notes were written back with `gh release edit`. The APK stayed at 2,919,453 bytes.
