@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,6 +43,10 @@ import androidx.compose.ui.unit.dp
 import app.dastyar.agent.data.ProviderEntity
 import app.dastyar.agent.network.CatalogModel
 import app.dastyar.agent.network.ModelOrder
+import app.dastyar.agent.ui.EmptyState
+import app.dastyar.agent.ui.Space
+import app.dastyar.agent.ui.StatusChip
+import app.dastyar.agent.ui.StatusTone
 import app.dastyar.agent.ui.t
 
 fun chatModelLabel(state: ChatUi): String {
@@ -84,16 +89,16 @@ fun ModelPickerSheet(
         ) {
             Text(t(lang, "ارائه‌دهنده و مدل", "Provider and model"), style = MaterialTheme.typography.titleLarge)
             if (state.providers.isEmpty()) {
-                Text(
-                    t(lang, "هنوز ارائه‌دهنده‌ای ذخیره نشده.", "No provider is saved yet."),
-                    style = MaterialTheme.typography.bodyLarge,
+                EmptyState(
+                    icon = Icons.Outlined.Key,
+                    title = t(lang, "هنوز ارائه‌دهنده‌ای نیست", "No provider yet"),
+                    body = t(lang, "یک کلید ذخیره کنید تا فهرست مدل‌ها اینجا بیاید.", "Save a key and the model list will show up here."),
+                    action = t(lang, "ارائه‌دهندگان", "Providers"),
+                    onAction = {
+                        onClose()
+                        onOpenProviders()
+                    },
                 )
-                Button(onClick = {
-                    onClose()
-                    onOpenProviders()
-                }) {
-                    Text(t(lang, "ارائه‌دهندگان", "Providers"))
-                }
                 return@Column
             }
             ProviderChips(state, onFollowDefault, onSelectProvider)
@@ -151,13 +156,12 @@ fun ModelPickerSheet(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
                 if (shown.isEmpty() && !state.pickerBusy && state.pickerStatus != "discontinued") {
-                    Column(Modifier.fillMaxSize().padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            t(lang, "مدلی در این فهرست نیست.", "No model is in this list."),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        TextButton(onClick = onRefresh) { Text(t(lang, "تلاش دوباره", "Try again")) }
-                    }
+                    EmptyState(
+                        title = t(lang, "مدلی در این فهرست نیست", "No model in this list"),
+                        body = t(lang, "تازه‌سازی را بزنید یا شناسه را پایین بنویسید.", "Refresh, or type an id below."),
+                        action = t(lang, "تلاش دوباره", "Try again"),
+                        onAction = onRefresh,
+                    )
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -208,7 +212,7 @@ private fun ProviderChips(
 
 @Composable
 private fun ModelRow(model: CatalogModel, lang: String, selected: Boolean, onClick: () -> Unit) {
-    val background = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface
+    val background = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
     Column(
         Modifier
             .fillMaxWidth()
@@ -226,13 +230,7 @@ private fun ModelRow(model: CatalogModel, lang: String, selected: Boolean, onCli
                 style = MaterialTheme.typography.titleSmall,
             )
             if (model.free) {
-                Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.small) {
-                    Text(
-                        t(lang, "رایگان", "Free"),
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
+                StatusChip(t(lang, "رایگان", "Free"), StatusTone.Positive)
             }
             if (model.note == "trial") {
                 Text(t(lang, "آزمایشی", "Trial"), style = MaterialTheme.typography.labelSmall)

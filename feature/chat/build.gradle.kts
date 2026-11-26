@@ -55,4 +55,5 @@ dependencies {
     implementation(project(":feature:agent"))
     implementation(project(":feature:voice"))
     implementation(libs.hilt.navigation.compose)
+    testImplementation(libs.junit)
 }

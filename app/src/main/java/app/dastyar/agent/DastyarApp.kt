@@ -6,12 +6,12 @@ import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.os.Build
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
-import androidx.core.os.LocaleListCompat
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import app.dastyar.agent.data.Appearance
+import app.dastyar.agent.data.LocaleGate
 import app.dastyar.agent.data.RoutineRepository
 import app.dastyar.agent.data.SettingsStore
 import app.dastyar.agent.tools.AutomationGate
@@ -21,7 +21,11 @@ import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 @HiltAndroidApp
 class DastyarApp : Application() {
@@ -34,20 +38,39 @@ class DastyarApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        val snap = runBlocking {
+            withTimeoutOrNull(2_000) {
+                withContext(Dispatchers.IO) { runCatching { settings.current() }.getOrNull() }
+            }
+        }
+        if (snap != null) {
+            LocaleGate.publish(snap.language, snap.themeMode, snap.colorMode)
+            Bootstrap.writeLanguage(this, snap.language)
+            AppLocales.apply(snap.language)
+            AutomationGate.paused = snap.toolsPaused
+        } else {
+            val pref = Bootstrap.language(this)
+            LocaleGate.publish(pref, Appearance.SYSTEM, Appearance.BRAND)
+            AppLocales.apply(pref)
+        }
         Notifications.ensure(this)
         RoutineTriggers.onSms = { from, body -> dispatchTrigger("sms", "$from\n$body") }
         RoutineTriggers.onNotification = { pkg, title, text ->
             dispatchTrigger("notification", "$pkg\n$title\n$text")
         }
-        applyLocale(Bootstrap.language(this))
         publishShortcuts()
         scope.scope.launch {
-            val snap = runCatching { settings.current() }.getOrNull() ?: return@launch
-            AutomationGate.paused = snap.toolsPaused
-            if (snap.language != Bootstrap.language(this@DastyarApp)) {
-                Bootstrap.writeLanguage(this@DastyarApp, snap.language)
-                applyLocale(snap.language)
+            settings.data.collect { current ->
+                val changed = current.language != LocaleGate.pref
+                LocaleGate.publish(current.language, current.themeMode, current.colorMode)
+                AutomationGate.paused = current.toolsPaused
+                if (changed) {
+                    Bootstrap.writeLanguage(this@DastyarApp, current.language)
+                    AppLocales.apply(current.language)
+                }
             }
+        }
+        scope.scope.launch {
             runCatching { scheduler.rescheduleAll() }
         }
         val request = PeriodicWorkRequestBuilder<RoutineKeepAliveWorker>(12, TimeUnit.HOURS).build()
@@ -74,11 +97,6 @@ class DastyarApp : Application() {
                 runCatching { ContextCompat.startForegroundService(this@DastyarApp, start) }
             }
         }
-    }
-
-    private fun applyLocale(language: String) {
-        val tag = if (language.startsWith("fa")) "fa" else "en"
-        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
     }
 
     private fun publishShortcuts() {

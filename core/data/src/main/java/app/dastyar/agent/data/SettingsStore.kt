@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.map
 
 data class SettingsSnapshot(
     val onboardingDone: Boolean = false,
-    val language: String = "fa",
+    val language: String = AppLanguage.DEFAULT,
     val toolsPaused: Boolean = false,
     val biometricGate: Boolean = false,
     val safTreeUri: String? = null,
@@ -27,6 +27,10 @@ data class SettingsSnapshot(
     val confirmMode: String = "sensitive",
     val disabledCategories: String = "",
     val disabledTools: String = "",
+    /** system, light, or dark. */
+    val themeMode: String = Appearance.SYSTEM,
+    /** brand or dynamic. */
+    val colorMode: String = Appearance.BRAND,
 )
 
 @Singleton
@@ -37,13 +41,13 @@ class SettingsStore @Inject constructor(
         produceFile = { context.preferencesDataStoreFile("dastyar_settings") },
     )
 
-    val data: Flow<SettingsSnapshot> = store.data.map { it.toSnapshot() }
+    val data: Flow<SettingsSnapshot> = store.data.map { it.toSettingsSnapshot() }
 
     suspend fun current(): SettingsSnapshot = data.first()
 
     suspend fun setOnboardingDone(done: Boolean) = edit { it[ONBOARDING] = done }
 
-    suspend fun setLanguage(language: String) = edit { it[LANGUAGE] = language }
+    suspend fun setLanguage(language: String) = edit { it[LANGUAGE] = AppLanguage.normalize(language) }
 
     suspend fun setToolsPaused(paused: Boolean) = edit { it[PAUSED] = paused }
 
@@ -67,23 +71,13 @@ class SettingsStore @Inject constructor(
 
     suspend fun setDisabledTools(value: String) = edit { it[TOOLS] = value }
 
+    suspend fun setThemeMode(mode: String) = edit { it[THEME] = Appearance.theme(mode) }
+
+    suspend fun setColorMode(mode: String) = edit { it[COLOR] = Appearance.color(mode) }
+
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         store.edit(block)
     }
-
-    private fun Preferences.toSnapshot() = SettingsSnapshot(
-        onboardingDone = this[ONBOARDING] ?: false,
-        language = this[LANGUAGE] ?: "fa",
-        toolsPaused = this[PAUSED] ?: false,
-        biometricGate = this[BIOMETRIC] ?: false,
-        safTreeUri = this[SAF],
-        webAllowlist = this[ALLOWLIST] ?: "",
-        activeConversationId = this[ACTIVE],
-        a11yDisclosed = this[A11Y] ?: false,
-        confirmMode = this[CONFIRM] ?: "sensitive",
-        disabledCategories = this[CATEGORIES] ?: "",
-        disabledTools = this[TOOLS] ?: "",
-    )
 
     private companion object {
         val ONBOARDING = booleanPreferencesKey("onboarding_done")
@@ -97,5 +91,23 @@ class SettingsStore @Inject constructor(
         val CONFIRM = stringPreferencesKey("confirm_mode")
         val CATEGORIES = stringPreferencesKey("disabled_categories")
         val TOOLS = stringPreferencesKey("disabled_tools")
+        val THEME = stringPreferencesKey("theme_mode")
+        val COLOR = stringPreferencesKey("color_mode")
     }
 }
+
+internal fun Preferences.toSettingsSnapshot() = SettingsSnapshot(
+    onboardingDone = this[booleanPreferencesKey("onboarding_done")] ?: false,
+    language = AppLanguage.normalize(this[stringPreferencesKey("language")]),
+    toolsPaused = this[booleanPreferencesKey("tools_paused")] ?: false,
+    biometricGate = this[booleanPreferencesKey("biometric_gate")] ?: false,
+    safTreeUri = this[stringPreferencesKey("saf_tree")],
+    webAllowlist = this[stringPreferencesKey("web_allowlist")] ?: "",
+    activeConversationId = this[stringPreferencesKey("active_conversation")],
+    a11yDisclosed = this[booleanPreferencesKey("a11y_disclosed")] ?: false,
+    confirmMode = this[stringPreferencesKey("confirm_mode")] ?: "sensitive",
+    disabledCategories = this[stringPreferencesKey("disabled_categories")] ?: "",
+    disabledTools = this[stringPreferencesKey("disabled_tools")] ?: "",
+    themeMode = Appearance.theme(this[stringPreferencesKey("theme_mode")]),
+    colorMode = Appearance.color(this[stringPreferencesKey("color_mode")]),
+)

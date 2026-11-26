@@ -3,6 +3,9 @@ package app.dastyar.agent.connectors
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.dastyar.agent.data.AppLanguage
+import app.dastyar.agent.data.LocaleGate
+import app.dastyar.agent.data.deviceLanguageTag
 import app.dastyar.agent.security.SecretVault
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
@@ -19,7 +22,7 @@ data class ConnectorRow(
 )
 
 data class ConnectorsUi(
-    val lang: String = "fa",
+    val lang: String = LocaleGate.uiLang,
     val rows: List<ConnectorRow> = emptyList(),
     val snap: ConnectorSnapshot = ConnectorSnapshot(),
     val secrets: Set<String> = emptySet(),
@@ -41,7 +44,9 @@ class ConnectorsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            settings.data.collect { snap -> _state.update { it.copy(lang = snap.language) } }
+            settings.data.collect { snap ->
+                _state.update { it.copy(lang = AppLanguage.uiLang(snap.language, deviceLanguageTag())) }
+            }
         }
         viewModelScope.launch {
             store.flow.collect {

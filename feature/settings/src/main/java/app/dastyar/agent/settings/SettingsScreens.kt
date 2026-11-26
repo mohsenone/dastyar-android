@@ -11,20 +11,41 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.automirrored.outlined.Notes
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
+import app.dastyar.agent.data.AppLanguage
+import app.dastyar.agent.data.Appearance
+import app.dastyar.agent.ui.DastyarTopBar
+import app.dastyar.agent.ui.EmptyState
+import app.dastyar.agent.ui.PrimaryButton
+import app.dastyar.agent.ui.SecondaryButton
+import app.dastyar.agent.ui.SectionHeader
+import app.dastyar.agent.ui.SettingsRow
+import app.dastyar.agent.ui.Space
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,37 +69,60 @@ fun OnboardingScreen(
     onPermissions: () -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val lang = state.lang
-    var page by remember { mutableStateOf(0) }
+    var page by rememberSaveable { mutableStateOf(0) }
     val pages = listOf(
-        t(lang, "دستیار روی خود گوشی کار می‌کند. کلید را شما می‌آورید. سرور دستیار کلید، پیامک یا فایل شما را نمی‌بیند.", "Dastyar runs on this phone. You bring the key. No Dastyar server sees your key, messages, or files."),
-        t(lang, "اعلان، پیامک، تماس، تقویم، فایل، دوربین، موقعیت و برنامه‌های دیگر فقط بعد از اجازهٔ شما در دسترس‌اند. اگر برنامه را از بیرون فروشگاه نصب کرده‌اید، در اندروید ۱۳ و جدیدتر اول «اجازه به تنظیمات محدود» را در اطلاعات برنامه روشن کنید.", "Notifications, SMS, calls, calendar, files, camera, location, and other apps are available only after you allow them. If you installed from outside the store, on Android 13 and later allow restricted settings in App info first."),
-        t(lang, "فرستادن پیامک، تماس، پاک کردن فایل، یا لمس برنامهٔ دیگر همیشه دکمهٔ تأیید می‌خواهد. از اعلان یا تنظیمات می‌توانید همهٔ ابزارها را متوقف کنید.", "Sending a text, placing a call, deleting a file, or tapping another app always needs a confirm button. Pause every tool from the notification or from Settings."),
+        stringResource(R.string.onboarding_value_title) to stringResource(R.string.onboarding_value_body),
+        stringResource(R.string.onboarding_privacy_title) to stringResource(R.string.onboarding_privacy_body),
     )
+    fun choose(code: String) {
+        onLanguage(code)
+        vm.setLanguage(code)
+    }
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Space.s24),
+        verticalArrangement = Arrangement.spacedBy(Space.s16),
     ) {
-        Text(t(lang, "دستیار", "Dastyar"), style = MaterialTheme.typography.headlineMedium)
-        Text(t(lang, "عامل هوش مصنوعی روی دستگاه", "On-device AI agent"), style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = lang.startsWith("fa"), onClick = { onLanguage("fa"); vm.setLanguage("fa") }, label = { Text("فارسی") })
-            FilterChip(selected = !lang.startsWith("fa"), onClick = { onLanguage("en"); vm.setLanguage("en") }, label = { Text("English") })
+        Box(
+            Modifier.size(72.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(32.dp))
         }
-        SectionCard(title = "${page + 1} / ${pages.size}", body = pages[page])
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (page > 0) OutlinedButton(onClick = { page -= 1 }) { Text(t(lang, "قبلی", "Back")) }
-            if (page < pages.lastIndex) {
-                Button(onClick = { page += 1 }) { Text(t(lang, "بعدی", "Next")) }
+        Text(stringResource(R.string.onboarding_kicker), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(stringResource(R.string.onboarding_title), style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.onboarding_language), style = MaterialTheme.typography.titleSmall)
+        LanguageChips(state.languagePref, ::choose)
+        SectionCard(title = pages[page].first, body = pages[page].second)
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+            repeat(pages.size) { index ->
+                Box(
+                    Modifier
+                        .size(if (index == page) 10.dp else 8.dp)
+                        .background(
+                            if (index == page) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                            CircleShape,
+                        ),
+                )
             }
         }
-        Button(onClick = onPermissions, modifier = Modifier.fillMaxWidth()) {
-            Text(t(lang, "اجازه‌ها و تنظیمات محدود", "Permissions and restricted settings"))
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+            if (page > 0) SecondaryButton(stringResource(R.string.onboarding_back), { page -= 1 })
+            if (page < pages.lastIndex) PrimaryButton(stringResource(R.string.onboarding_next), { page += 1 })
         }
-        Button(onClick = { vm.finishOnboarding(); onDone(true) }, modifier = Modifier.fillMaxWidth()) {
-            Text(t(lang, "افزودن یک کلید رایگان", "Add a free key"))
+        if (page == pages.lastIndex) {
+            TextButton(onClick = onPermissions) { Text(stringResource(R.string.onboarding_permissions)) }
+            PrimaryButton(stringResource(R.string.onboarding_add_key), { vm.finishOnboarding(); onDone(true) }, Modifier.fillMaxWidth())
+            SecondaryButton(stringResource(R.string.onboarding_skip), { vm.finishOnboarding(); onDone(false) }, Modifier.fillMaxWidth())
         }
-        TextButton(onClick = { vm.finishOnboarding(); onDone(false) }) { Text(t(lang, "رفتن به گفتگو", "Skip to chat")) }
+    }
+}
+
+@Composable
+private fun LanguageChips(pref: String, onChoose: (String) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+        FilterChip(selected = pref == AppLanguage.SYSTEM, onClick = { onChoose(AppLanguage.SYSTEM) }, label = { Text(stringResource(R.string.language_system)) })
+        FilterChip(selected = pref == AppLanguage.ENGLISH, onClick = { onChoose(AppLanguage.ENGLISH) }, label = { Text(stringResource(R.string.language_english)) })
+        FilterChip(selected = pref == AppLanguage.PERSIAN, onClick = { onChoose(AppLanguage.PERSIAN) }, label = { Text(stringResource(R.string.language_persian)) })
     }
 }
 
@@ -101,16 +145,26 @@ fun SettingsScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(t(lang, "تنظیمات", "Settings"), style = MaterialTheme.typography.headlineSmall)
-        if (state.message != null) {
-            TextButton(onClick = vm::clearMessage) { Text(state.message ?: "") }
+        DastyarTopBar(t(lang, "تنظیمات", "Settings"))
+        SectionHeader(stringResource(R.string.onboarding_language))
+        LanguageChips(state.languagePref) { code ->
+            onLanguage(code)
+            vm.setLanguage(code)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = lang.startsWith("fa"), onClick = { onLanguage("fa"); vm.setLanguage("fa") }, label = { Text("فارسی") })
-            FilterChip(selected = !lang.startsWith("fa"), onClick = { onLanguage("en"); vm.setLanguage("en") }, label = { Text("English") })
+        SectionHeader(stringResource(R.string.settings_appearance))
+        Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+            FilterChip(selected = state.themeMode == Appearance.SYSTEM, onClick = { vm.setThemeMode(Appearance.SYSTEM) }, label = { Text(stringResource(R.string.theme_system)) })
+            FilterChip(selected = state.themeMode == Appearance.LIGHT, onClick = { vm.setThemeMode(Appearance.LIGHT) }, label = { Text(stringResource(R.string.theme_light)) })
+            FilterChip(selected = state.themeMode == Appearance.DARK, onClick = { vm.setThemeMode(Appearance.DARK) }, label = { Text(stringResource(R.string.theme_dark)) })
         }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(t(lang, "توقف همهٔ ابزارها", "Pause all tools"), modifier = Modifier.weight(1f))
+        Text(stringResource(R.string.settings_color), style = MaterialTheme.typography.titleSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+            FilterChip(selected = state.colorMode != Appearance.DYNAMIC, onClick = { vm.setColorMode(Appearance.BRAND) }, label = { Text(stringResource(R.string.color_brand)) })
+            FilterChip(selected = state.colorMode == Appearance.DYNAMIC, onClick = { vm.setColorMode(Appearance.DYNAMIC) }, label = { Text(stringResource(R.string.color_dynamic)) })
+        }
+        Text(stringResource(R.string.color_dynamic_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SettingsRow(title = t(lang, "توقف همهٔ ابزارها", "Pause all tools")) {
             Switch(checked = state.paused, onCheckedChange = vm::setPaused)
         }
         Text(t(lang, "تأیید عمل‌ها", "Confirmation"), style = MaterialTheme.typography.titleMedium)
@@ -248,7 +302,14 @@ fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(t(lang, "روال‌ها", "Routines"), style = MaterialTheme.typography.headlineSmall)
+        DastyarTopBar(t(lang, "روال‌ها", "Routines"))
+        if (state.routines.isEmpty()) {
+            EmptyState(
+                icon = Icons.Outlined.Schedule,
+                title = stringResource(R.string.empty_routines_title),
+                body = stringResource(R.string.empty_routines_body),
+            )
+        }
         Text(
             t(lang, "روال در پس‌زمینه با یک خدمت پیش‌زمینه اجرا می‌شود و اعلان «دستیار در حال اجرای روال است» را نشان می‌دهد. زمان‌بندی، پیامک ورودی، یا یک اعلان می‌تواند آن را شروع کند. پیامک، تماس و خودکارسازی برنامه همچنان تأیید می‌خواهند مگر این کلید را روشن کنید. پیش‌فرض خاموش است. فرستادن، حذف و تماس حتی در حالت خودکار تأیید می‌خواهند مگر همین کلید روشن باشد.", "A routine runs in the background with a foreground service and the notification “Dastyar is running a routine”. A clock, an incoming SMS, or a notification can start it. SMS, calls, and other-app automation still ask unless you turn this on. The default is off. Sends, deletes, and calls still confirm in auto mode unless this switch is on."),
         )
@@ -330,7 +391,7 @@ fun AuditScreen(vm: SettingsViewModel, onExport: suspend (String) -> Unit) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(t(lang, "گزارش ابزارها", "Tool audit"), style = MaterialTheme.typography.headlineSmall)
+        DastyarTopBar(t(lang, "گزارش ابزارها", "Tool audit"))
         Text(
             t(lang, "زمان، ابزار، نتیجه و آرگومان‌های سانسورشده. رمز در گزارش نوشته نمی‌شود.", "Time, tool, result, and redacted arguments. Tokens are not written here."),
             style = MaterialTheme.typography.bodySmall,
@@ -356,6 +417,13 @@ fun AuditScreen(vm: SettingsViewModel, onExport: suspend (String) -> Unit) {
         Row {
             TextButton(onClick = { scope.launch { onExport(vm.exportAudit()) } }) { Text(t(lang, "خروجی", "Export")) }
             TextButton(onClick = vm::deleteAudit) { Text(t(lang, "پاک کردن", "Delete")) }
+        }
+        if (rows.isEmpty()) {
+            EmptyState(
+                icon = Icons.Outlined.History,
+                title = stringResource(R.string.empty_audit_title),
+                body = stringResource(R.string.empty_audit_body),
+            )
         }
         rows.take(200).forEach { row ->
             Text(
@@ -395,7 +463,14 @@ fun MemoriesScreen(vm: SettingsViewModel) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(t(lang, "یادداشت‌ها", "Saved facts"), style = MaterialTheme.typography.headlineSmall)
+        DastyarTopBar(t(lang, "یادداشت‌ها", "Saved facts"))
+        if (state.memories.isEmpty()) {
+            EmptyState(
+                icon = Icons.AutoMirrored.Outlined.Notes,
+                title = stringResource(R.string.empty_memories_title),
+                body = stringResource(R.string.empty_memories_body),
+            )
+        }
         state.memories.forEach { memory ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(memory.fact, modifier = Modifier.weight(1f))
@@ -415,7 +490,7 @@ fun DisclosureScreen(vm: SettingsViewModel, onOpenSettings: () -> Unit, onBack: 
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(t(lang, "افشای دسترس‌پذیری", "Accessibility disclosure"), style = MaterialTheme.typography.headlineSmall)
+        DastyarTopBar(t(lang, "افشای دسترس‌پذیری", "Accessibility disclosure"))
         Text(t(lang, "خدمت دسترس‌پذیری دستیار می‌تواند متن و ساختار صفحهٔ برنامه‌های دیگر را بخواند و ضربه، پیمایش و نوشتن انجام دهد. این یعنی کنترل برنامه‌های دیگر، از جمله دیدن نوشته‌ای که روی صفحه است.", "Dastyar's accessibility service can read the text and structure of other apps and can tap, scroll, and type. That means it can control other apps, including content visible on screen."))
         Text(t(lang, "هر حرکتی که وضعیت برنامهٔ دیگر را عوض کند خطرناک است و قبل از اجرا تأیید می‌خواهد. اگر مدل چند گام را با هم طرح کند، یک تأیید با فهرست گام‌ها نشان داده می‌شود.", "Every gesture that changes another app is dangerous and needs confirmation. If the model planned several steps, one confirmation lists them."))
         Text(t(lang, "از اعلان «توقف ابزارها» می‌توانید خودکارسازی را فوراً متوقف کنید. برای خاموش کردن همیشگی: تنظیمات سیستم، دسترس‌پذیری، دستیار، خاموش.", "Pause automation immediately from the “Pause tools” notification. To turn it off for good: system Settings, Accessibility, Dastyar, off."))

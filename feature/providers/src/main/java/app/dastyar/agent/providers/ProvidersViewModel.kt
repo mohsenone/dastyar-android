@@ -2,9 +2,12 @@ package app.dastyar.agent.providers
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.dastyar.agent.data.AppLanguage
+import app.dastyar.agent.data.LocaleGate
 import app.dastyar.agent.data.ProviderEntity
 import app.dastyar.agent.data.ProviderRepository
 import app.dastyar.agent.data.SettingsStore
+import app.dastyar.agent.data.deviceLanguageTag
 import app.dastyar.agent.network.LlmClientFactory
 import app.dastyar.agent.network.LlmOptions
 import app.dastyar.agent.security.ScreenLockRequiredException
@@ -32,7 +35,7 @@ data class KeyForm(
 )
 
 data class ProvidersUi(
-    val lang: String = "fa",
+    val lang: String = LocaleGate.uiLang,
     val freeTab: Boolean = true,
     val saved: List<ProviderEntity> = emptyList(),
     val form: KeyForm? = null,
@@ -54,7 +57,9 @@ class ProvidersViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            settings.data.collect { snap -> _state.update { it.copy(lang = snap.language) } }
+            settings.data.collect { snap ->
+                _state.update { it.copy(lang = AppLanguage.uiLang(snap.language, deviceLanguageTag())) }
+            }
         }
         viewModelScope.launch {
             repo.observe().collect { rows -> _state.update { it.copy(saved = rows) } }

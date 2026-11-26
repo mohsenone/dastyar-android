@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material3.Button
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -24,6 +28,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +36,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import app.dastyar.agent.ui.DastyarSnackbarHost
+import app.dastyar.agent.ui.DastyarTopBar
+import app.dastyar.agent.ui.EmptyState
+import app.dastyar.agent.ui.StatusChip
+import app.dastyar.agent.ui.StatusTone
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -54,11 +64,19 @@ fun ConnectorsScreen(
     val googleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         vm.onGoogleActivity(result.data)
     }
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(state.message) {
+        val message = state.message ?: return@LaunchedEffect
+        snackbar.showSnackbar(message)
+        vm.clearMessage()
+    }
+    val anyConnected = state.rows.any { it.status == LinkStatus.CONNECTED }
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(t(lang, "اتصال‌ها", "Connectors"), style = MaterialTheme.typography.headlineSmall)
+        DastyarTopBar(t(lang, "اتصال‌ها", "Connectors"))
         Text(
             t(
                 lang,
@@ -67,8 +85,12 @@ fun ConnectorsScreen(
             ),
             style = MaterialTheme.typography.bodyMedium,
         )
-        if (state.message != null) {
-            TextButton(onClick = vm::clearMessage) { Text(state.message ?: "") }
+        if (!anyConnected) {
+            EmptyState(
+                icon = Icons.Outlined.Hub,
+                title = t(lang, "هنوز چیزی متصل نیست", "Nothing connected yet"),
+                body = t(lang, "یک اتصال را روشن کنید و آزمایش کنید. اتصال خاموش ابزاری اضافه نمی‌کند.", "Turn one on and test it. A connector that is off adds no tools."),
+            )
         }
         OutlinedButton(onClick = onPermissions, modifier = Modifier.fillMaxWidth()) {
             Text(t(lang, "اجازه‌ها، دسترس‌پذیری، اعلان", "Permissions, accessibility, notifications"))
@@ -124,6 +146,8 @@ fun ConnectorsScreen(
         McpCard(state, vm, lang)
         ShizukuCard(state, vm, lang, signingSha1(context.packageManager, context.packageName))
     }
+    DastyarSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(16.dp))
+    }
 }
 
 @Composable
@@ -141,7 +165,8 @@ private fun GoogleCard(
     var extra by remember(state.snap.googleExtraScopes) { mutableStateOf(state.snap.googleExtraScopes) }
     val sha = remember { signingSha1(context.packageManager, context.packageName) }
     SectionCard(
-        title = "Google · ${statusLabel(lang, row.status)}",
+        title = "Google",
+        badge = { LinkBadge(lang, row.status) },
         body = t(
             lang,
             "ورود با OAuth و AppAuth (Custom Tabs) و PKCE. شناسهٔ کلاینت را خودتان در Google Cloud می‌سازید. درایو و مخاطبین اختیاری‌اند و ممکن است تأیید گوگل بخواهند. اگر scope داده نشود، همان ابزار خطای API را برمی‌گرداند.\nبسته: app.dastyar.agent\nSHA-1 این نصب: $sha\nنشانی بازگشت: ${OAuthRedirect.DEFAULT}",
@@ -209,7 +234,8 @@ private fun TokenCard(
     val context = LocalContext.current
     var token by remember { mutableStateOf("") }
     SectionCard(
-        title = "$title · ${statusLabel(lang, row.status)}",
+        title = title,
+        badge = { LinkBadge(lang, row.status) },
         body = body + if (hasSecret) t(lang, "\nرمز ذخیره شده است.", "\nA secret is saved.") else t(lang, "\nهنوز رمزی نیست.", "\nNo secret yet."),
         footer = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -245,7 +271,8 @@ private fun WebhookCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: Stri
     var header by remember(state.snap.webhookHeader) { mutableStateOf(state.snap.webhookHeader) }
     var secret by remember { mutableStateOf("") }
     SectionCard(
-        title = "Webhook · ${statusLabel(lang, row.status)}",
+        title = "Webhook",
+        badge = { LinkBadge(lang, row.status) },
         body = t(lang, "درخواست HTTP تأییدشده. https آزاد است. http فقط اگر میزبان در فهرست مجاز وب باشد.", "A confirmed HTTP request. https is allowed. http only when the host is on the web allowlist."),
         footer = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -275,7 +302,8 @@ private fun SearchCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: Strin
     var tavily by remember { mutableStateOf("") }
     var brave by remember { mutableStateOf("") }
     SectionCard(
-        title = t(lang, "جستجوی وب", "Web search") + " · ${statusLabel(lang, row.status)}",
+        title = t(lang, "جستجوی وب", "Web search"),
+        badge = { LinkBadge(lang, row.status) },
         body = t(lang, "Tavily یا Brave با کلید خودتان، یا یک SearXNG. سقف رایگان اینجا ساخته نشده است. web_fetch برای صفحه‌ای که انتخاب شده می‌ماند.", "Tavily or Brave with your own key, or a SearXNG base URL. This app does not invent a free quota. web_fetch still opens a page you already chose."),
         footer = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -314,7 +342,8 @@ private fun RssCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: String) 
     val row = state.rows.first { it.id == ConnectorIds.RSS }
     var text by remember(state.snap.rss) { mutableStateOf(state.snap.rss.joinToString("\n")) }
     SectionCard(
-        title = "RSS · ${statusLabel(lang, row.status)}",
+        title = "RSS",
+        badge = { LinkBadge(lang, row.status) },
         body = t(lang, "هر خط یک نشانی خوراک. رمز لازم نیست.", "One feed URL per line. No secret."),
         footer = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -339,7 +368,8 @@ private fun WeatherCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: Stri
     var kind by remember(state.snap.weatherKind) { mutableStateOf(state.snap.weatherKind) }
     var key by remember { mutableStateOf("") }
     SectionCard(
-        title = t(lang, "هوا", "Weather") + " · ${statusLabel(lang, row.status)}",
+        title = t(lang, "هوا", "Weather"),
+        badge = { LinkBadge(lang, row.status) },
         body = t(lang, "Open-Meteo کلید نمی‌خواهد. OpenWeather فقط اگر کلید خودتان را بگذارید. قیمت رسمی اینجا نوشته نشده است.", "Open-Meteo needs no key. OpenWeather is used only with a key you provide. Official prices are not stated here."),
         footer = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -376,7 +406,8 @@ private fun McpCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: String) 
     var transport by remember { mutableStateOf("auto") }
     var token by remember { mutableStateOf("") }
     SectionCard(
-        title = "MCP · ${statusLabel(lang, row.status)}",
+        title = "MCP",
+        badge = { LinkBadge(lang, row.status) },
         body = t(lang, "سرور MCP را با Streamable HTTP اضافه کنید. اگر سرور هنوز SSE قدیمی است، حمل‌ونقل sse یا auto را بگذارید. ابزارها با نام mcp_<سرور>_<ابزار> ثبت می‌شوند. توکن Bearer در Keystore است.", "Add an MCP server with Streamable HTTP. If the server still uses the older SSE transport, choose sse or auto. Tools are registered as mcp_<server>_<tool>. The bearer token stays in the Keystore."),
         footer = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -417,7 +448,8 @@ private fun ShizukuCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: Stri
     val row = state.rows.first { it.id == ConnectorIds.SHIZUKU }
     val context = LocalContext.current
     SectionCard(
-        title = "Shizuku · ${statusLabel(lang, row.status)}",
+        title = "Shizuku",
+        badge = { LinkBadge(lang, row.status) },
         body = t(
             lang,
             "اختیاری است. اگر Shizuku نصب و مجاز باشد، تنظیمات، grant/revoke یک اجازه، و شروع یا توقف یک جزء که خودتان نام می‌برید با تأیید انجام می‌شود. اگر نباشد، ابزارها می‌گویند Shizuku اجرا نیست. روت و بالا بردن پنهانی اجازه نیست.\nSHA-1 برای کلاینت اندروید گوگل: $sha",
@@ -440,11 +472,22 @@ private fun ShizukuCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: Stri
     )
 }
 
+@Composable
+private fun LinkBadge(lang: String, status: LinkStatus) {
+    val tone = when (status) {
+        LinkStatus.CONNECTED -> StatusTone.Positive
+        LinkStatus.NEEDS_AUTH -> StatusTone.Warning
+        LinkStatus.ERROR -> StatusTone.Danger
+        LinkStatus.OFF -> StatusTone.Neutral
+    }
+    StatusChip(statusLabel(lang, status), tone)
+}
+
 private fun statusLabel(lang: String, status: LinkStatus): String = when (status) {
-    LinkStatus.OFF -> t(lang, "خاموش", "off")
-    LinkStatus.NEEDS_AUTH -> t(lang, "نیاز به ورود", "needs auth")
-    LinkStatus.CONNECTED -> t(lang, "متصل", "connected")
-    LinkStatus.ERROR -> t(lang, "خطا", "error")
+    LinkStatus.OFF -> t(lang, "خاموش", "Off")
+    LinkStatus.NEEDS_AUTH -> t(lang, "نیاز به راه‌اندازی", "Needs setup")
+    LinkStatus.CONNECTED -> t(lang, "متصل", "Connected")
+    LinkStatus.ERROR -> t(lang, "خطا", "Error")
 }
 
 private fun open(context: android.content.Context, url: String) {

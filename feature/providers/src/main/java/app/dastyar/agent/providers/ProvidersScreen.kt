@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -41,7 +43,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
+import app.dastyar.agent.ui.DastyarTopBar
+import app.dastyar.agent.ui.EmptyState
 import app.dastyar.agent.ui.SectionCard
+import app.dastyar.agent.ui.StatusChip
+import app.dastyar.agent.ui.StatusTone
 import app.dastyar.agent.ui.t
 import kotlinx.coroutines.launch
 
@@ -55,7 +61,7 @@ fun ProvidersScreen(vm: ProvidersViewModel = hiltViewModel()) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(t(lang, "ارائه‌دهندگان", "Providers"), style = MaterialTheme.typography.headlineSmall)
+        DastyarTopBar(t(lang, "ارائه‌دهندگان", "Providers"))
         Text(
             t(lang, "کلید مال شماست و روی همین گوشی می‌ماند. دستیار هزینهٔ مدل را صورتحساب نمی‌کند.", "The key is yours and stays on this phone. Dastyar does not bill model usage."),
             style = MaterialTheme.typography.bodyMedium,
@@ -66,6 +72,13 @@ fun ProvidersScreen(vm: ProvidersViewModel = hiltViewModel()) {
         }
         if (state.notice != null) {
             Text(state.notice ?: "", color = MaterialTheme.colorScheme.primary)
+        }
+        if (state.saved.isEmpty()) {
+            EmptyState(
+                icon = Icons.Outlined.Key,
+                title = t(lang, "هنوز کلیدی ذخیره نشده", "No key saved yet"),
+                body = t(lang, "یک گزینهٔ پایین را باز کنید. دستیار هزینهٔ مدل را حساب نمی‌کند.", "Open one of the options below. Dastyar does not bill model usage."),
+            )
         }
         if (state.saved.isNotEmpty()) {
             Text(t(lang, "ذخیره‌شده", "Saved"), style = MaterialTheme.typography.titleMedium)
@@ -86,9 +99,16 @@ fun ProvidersScreen(vm: ProvidersViewModel = hiltViewModel()) {
         Catalog.forTab(state.freeTab).forEach { card ->
             val badge = if (lang.startsWith("fa")) card.badgeFa else card.badgeEn
             val summary = if (lang.startsWith("fa")) card.summaryFa else card.summaryEn
+            val tone = when {
+                card.discontinued -> StatusTone.Danger
+                badge.contains("free", true) || badge.contains("رایگان") -> StatusTone.Positive
+                badge.contains("trial", true) || badge.contains("آزمایش") -> StatusTone.Warning
+                else -> StatusTone.Neutral
+            }
             SectionCard(
                 title = card.name,
-                body = "$badge — $summary",
+                badge = { StatusChip(badge, tone) },
+                body = summary,
                 footer = {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (!card.signupUrl.isNullOrBlank()) {

@@ -7,14 +7,13 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,19 +30,23 @@ import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -55,7 +58,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import androidx.core.os.LocaleListCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -67,7 +70,12 @@ import androidx.navigation.navArgument
 import app.dastyar.agent.chat.ChatScreen
 import app.dastyar.agent.chat.ChatViewModel
 import app.dastyar.agent.connectors.ConnectorsScreen
+import app.dastyar.agent.data.AppLanguage
+import app.dastyar.agent.data.Appearance
+import app.dastyar.agent.data.LocaleGate
+import app.dastyar.agent.data.SettingsSnapshot
 import app.dastyar.agent.data.SettingsStore
+import app.dastyar.agent.data.deviceLanguageTag
 import app.dastyar.agent.loop.ConfirmationBus
 import app.dastyar.agent.providers.ProvidersScreen
 import app.dastyar.agent.settings.AuditScreen
@@ -81,6 +89,7 @@ import app.dastyar.agent.settings.SettingsViewModel
 import app.dastyar.agent.tools.RestrictedSettings
 import app.dastyar.agent.tools.RiskLevel
 import app.dastyar.agent.ui.ConfirmPanel
+import app.dastyar.agent.ui.DastyarSnackbarHost
 import app.dastyar.agent.ui.DastyarTheme
 import app.dastyar.agent.ui.t
 import dagger.hilt.android.AndroidEntryPoint
@@ -104,6 +113,7 @@ class MainActivity : AppCompatActivity() {
     private val routes = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         consumeIntent(intent)
@@ -172,21 +182,48 @@ class MainActivity : AppCompatActivity() {
     }.getOrNull()
 
     fun applyLanguage(language: String) {
-        Bootstrap.writeLanguage(this, language)
-        val tag = if (language.startsWith("fa")) "fa" else "en"
-        AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(tag))
+        val pref = AppLanguage.normalize(language)
+        Bootstrap.writeLanguage(this, pref)
+        LocaleGate.publish(pref, LocaleGate.themeMode, LocaleGate.colorMode)
+        AppLocales.apply(pref)
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun DastyarRoot() {
         val settings by settingsStore.data.collectAsStateWithLifecycle(
-            initialValue = app.dastyar.agent.data.SettingsSnapshot(language = Bootstrap.language(this)),
+            initialValue = SettingsSnapshot(
+                language = LocaleGate.pref,
+                themeMode = LocaleGate.themeMode,
+                colorMode = LocaleGate.colorMode,
+                onboardingDone = Bootstrap.onboardingDone(this),
+            ),
         )
-        val lang = settings.language
-        val direction = if (lang.startsWith("fa")) LayoutDirection.Rtl else LayoutDirection.Ltr
+        val settingsUi by settingsVm.state.collectAsStateWithLifecycle()
+        val snackbar = remember { SnackbarHostState() }
+        LaunchedEffect(settingsUi.message) {
+            val message = settingsUi.message ?: return@LaunchedEffect
+            snackbar.showSnackbar(message)
+            settingsVm.clearMessage()
+        }
+        val lang = AppLanguage.uiLang(settings.language, deviceLanguageTag())
+        val dark = when (settings.themeMode) {
+            Appearance.LIGHT -> false
+            Appearance.DARK -> true
+            else -> isSystemInDarkTheme()
+        }
+        val direction = if (lang == AppLanguage.PERSIAN) LayoutDirection.Rtl else LayoutDirection.Ltr
+        SideEffect {
+            val transparent = android.graphics.Color.TRANSPARENT
+            val bar = if (dark) {
+                SystemBarStyle.dark(transparent)
+            } else {
+                SystemBarStyle.light(transparent, transparent)
+            }
+            enableEdgeToEdge(statusBarStyle = bar, navigationBarStyle = bar)
+        }
         androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides direction) {
-            DastyarTheme {
+            DastyarTheme(dark = dark, dynamicColor = settings.colorMode == Appearance.DYNAMIC) {
                 val nav = rememberNavController()
                 val back by nav.currentBackStackEntryAsState()
                 val route = back?.destination?.route
@@ -362,9 +399,11 @@ class MainActivity : AppCompatActivity() {
 
                 val start = if (Bootstrap.onboardingDone(this) || settings.onboardingDone) "chat" else "onboarding"
                 Scaffold(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    snackbarHost = { DastyarSnackbarHost(snackbar) },
                     bottomBar = {
                         if (route in TOP) {
-                            NavigationBar {
+                            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                                 NavItem(nav, route, "chat", t(lang, "گفتگو", "Chat"), Icons.AutoMirrored.Outlined.Chat)
                                 NavItem(nav, route, "providers", t(lang, "کلیدها", "Providers"), Icons.Outlined.Key)
                                 NavItem(nav, route, "connectors", t(lang, "اتصال", "Links"), Icons.Outlined.Hub)

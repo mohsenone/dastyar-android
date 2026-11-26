@@ -3,15 +3,19 @@ package app.dastyar.agent.settings
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.dastyar.agent.data.AppLanguage
+import app.dastyar.agent.data.Appearance
 import app.dastyar.agent.data.AuditEntity
 import app.dastyar.agent.data.AuditRepository
 import app.dastyar.agent.data.ChatRepository
+import app.dastyar.agent.data.LocaleGate
 import app.dastyar.agent.data.MemoryEntity
 import app.dastyar.agent.data.MemoryRepository
 import app.dastyar.agent.data.ProviderRepository
 import app.dastyar.agent.data.RoutineEntity
 import app.dastyar.agent.data.RoutineRepository
 import app.dastyar.agent.data.SettingsStore
+import app.dastyar.agent.data.deviceLanguageTag
 import app.dastyar.agent.loop.AgentLoop
 import app.dastyar.agent.loop.ConfirmationBus
 import app.dastyar.agent.security.ScreenLockRequiredException
@@ -30,7 +34,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class SettingsUi(
-    val lang: String = "fa",
+    val lang: String = LocaleGate.uiLang,
+    val languagePref: String = LocaleGate.pref,
+    val themeMode: String = LocaleGate.themeMode,
+    val colorMode: String = LocaleGate.colorMode,
     val paused: Boolean = false,
     val biometric: Boolean = false,
     val hardware: Boolean = false,
@@ -73,7 +80,10 @@ class SettingsViewModel @Inject constructor(
             settings.data.collect { snap ->
                 _state.update {
                     it.copy(
-                        lang = snap.language,
+                        lang = AppLanguage.uiLang(snap.language, deviceLanguageTag()),
+                        languagePref = snap.language,
+                        themeMode = snap.themeMode,
+                        colorMode = snap.colorMode,
                         paused = snap.toolsPaused,
                         biometric = snap.biometricGate,
                         allowlist = if (it.allowlist == snap.webAllowlist || it.allowlist.isEmpty()) snap.webAllowlist else it.allowlist,
@@ -103,6 +113,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setLanguage(lang: String) {
         viewModelScope.launch { settings.setLanguage(lang) }
+    }
+
+    fun setThemeMode(mode: String) {
+        viewModelScope.launch { settings.setThemeMode(mode) }
+    }
+
+    fun setColorMode(mode: String) {
+        viewModelScope.launch { settings.setColorMode(mode) }
     }
 
     fun finishOnboarding() {

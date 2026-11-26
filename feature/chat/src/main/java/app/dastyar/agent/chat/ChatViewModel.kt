@@ -2,14 +2,17 @@ package app.dastyar.agent.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.dastyar.agent.data.AppLanguage
 import app.dastyar.agent.data.ChatRepository
 import app.dastyar.agent.data.ConversationEntity
+import app.dastyar.agent.data.LocaleGate
 import app.dastyar.agent.data.MessageEntity
 import app.dastyar.agent.data.ModelCacheEntity
 import app.dastyar.agent.data.ModelCacheRepository
 import app.dastyar.agent.data.ProviderEntity
 import app.dastyar.agent.data.ProviderRepository
 import app.dastyar.agent.data.SettingsStore
+import app.dastyar.agent.data.deviceLanguageTag
 import app.dastyar.agent.loop.AgentEvent
 import app.dastyar.agent.loop.AgentLoop
 import app.dastyar.agent.loop.AgentRequest
@@ -36,7 +39,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class ChatUi(
-    val lang: String = "fa",
+    val lang: String = LocaleGate.uiLang,
     val conversations: List<ConversationEntity> = emptyList(),
     val messages: List<MessageEntity> = emptyList(),
     val activeId: String? = null,
@@ -81,7 +84,7 @@ class ChatViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             settings.data.collect { snap ->
-                _state.update { it.copy(lang = snap.language) }
+                _state.update { it.copy(lang = AppLanguage.uiLang(snap.language, deviceLanguageTag())) }
                 val savedId = snap.activeConversationId
                 if (_state.value.activeId == null && !savedId.isNullOrBlank()) {
                     open(savedId)

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_kicker">On-device assistant</string>
+    <string name="onboarding_title">Dastyar stays on this phone</string>
+    <string name="onboarding_value_title">You bring the key</string>
+    <string name="onboarding_value_body">There is no Dastyar server in the middle. Your key, chats, and files stay on the device. You choose a provider, and that provider is the one that sees a message.</string>
+    <string name="onboarding_privacy_title">Ask before it acts</string>
+    <string name="onboarding_privacy_body">Sending a text, placing a call, deleting a file, or tapping another app waits for you. Permissions come later, one at a time. On Android 13 and later, a sideloaded install may also need Allow restricted settings.</string>
+    <string name="onboarding_language">Language</string>
+    <string name="language_system">System</string>
+    <string name="language_english">English</string>
+    <string name="language_persian">فارسی</string>
+    <string name="onboarding_back">Back</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_permissions">How permissions work</string>
+    <string name="onboarding_add_key">Add a key</string>
+    <string name="onboarding_skip">Skip to chat</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="settings_color">Colors</string>
+    <string name="color_brand">Brand</string>
+    <string name="color_dynamic">System dynamic</string>
+    <string name="color_dynamic_hint">On Android 12 and later, dynamic colors follow the wallpaper. Brand keeps the teal and clay palette. Older phones stay on brand.</string>
+    <string name="empty_routines_title">No routines yet</string>
+    <string name="empty_routines_body">Add a clock, SMS, or notification trigger below. It stays off until you turn it on.</string>
+    <string name="empty_audit_title">No tool runs yet</string>
+    <string name="empty_audit_body">Confirmed actions will show the time, the tool, and a short redacted result.</string>
+    <string name="empty_memories_title">No saved facts</string>
+    <string name="empty_memories_body">Facts you or the model save stay on this phone. There is no vector index in this version.</string>
+</resources>

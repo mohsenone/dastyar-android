@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 — 2026-11-26
+
+English
+
+- Visual redesign on the same teal, clay, and warm-paper palette: full Material 3 color scheme, rounded shapes, a spacing scale, and shared bars, rows, chips, buttons, empty states, and snackbars. Light and dark follow the system, with an in-app override. Brand colors are the default. On Android 12 and later, Settings can switch to wallpaper dynamic color.
+- English is the language of a new install, left to right, set with Plus Jakarta Sans. Persian still uses Vazirmatn and a right-to-left layout. Onboarding and Settings offer System, English, and فارسی, applied with Android per-app locales before the first screen. A phone that already stored Persian stays Persian. A missing language key does not fall back to Persian.
+- Chat shows distinct user and assistant bubbles, markdown (headings, lists, links, inline code, fenced code with a language label), tool-call cards, a typing indicator, and a rounded composer. The provider and model chip still opens the same picker: configured providers only, free models first, search, refresh, and the advanced model id.
+- Onboarding is a short English-first intro with the language choice up front. Permissions, including Allow restricted settings, stay on their own screen. Empty states cover chat, providers, connectors, routines, the action log, and memories.
+- Much of the older screen copy still goes through the in-code `t()` helper, with a Persian and an English string. New onboarding, language, and appearance copy lives in string resources. This build was not run on a phone or an emulator.
+
+فارسی
+
+- بازطراحی روی همان پالت سبزآبی، گِل و کاغذ گرم: طرح رنگ کامل Material 3، گوشه‌های گرد، مقیاس فاصله، و نوار و ردیف و نشان و دکمه و حالت خالی و پیام مشترک. روشن و تیره سیستم را دنبال می‌کنند و از داخل برنامه هم عوض می‌شوند. رنگ نشان پیش‌فرض است. در اندروید ۱۲ به بعد، تنظیمات می‌تواند رنگ پویای کاغذدیواری را روشن کند.
+- زبان نصب تازه انگلیسی و چپ‌به‌راست است و قلمش Plus Jakarta Sans است. فارسی همچنان وزیرمتن و راست‌به‌چپ است. معرفی و تنظیمات System و English و فارسی را دارند و با زبانِ هر برنامهٔ اندروید پیش از نخستین صفحه اعمال می‌شوند. گوشی‌ای که فارسی ذخیره کرده فارسی می‌ماند. نبودن کلید زبان به فارسی برنمی‌گردد.
+- گفتگو حباب جدا برای کاربر و دستیار، مارک‌داون (عنوان، فهرست، پیوند، کد درون‌خط، قطعهٔ کد با نام زبان)، کارت فراخوانی ابزار، نشان تایپ، و جعبهٔ نوشتن گرد دارد. تراشهٔ ارائه‌دهنده و مدل همان انتخابگر را باز می‌کند: فقط ارائه‌دهنده‌های ذخیره‌شده، مدل رایگان اول، جستجو، تازه‌سازی، و شناسهٔ پیشرفته.
+- معرفی کوتاه و اول انگلیسی است و انتخاب زبان همان اول است. اجازه‌ها، از جمله تنظیمات محدود، در صفحهٔ خودشان می‌مانند. حالت خالی برای گفتگو، ارائه‌دهنده، اتصال، روال، گزارش عمل و خاطره‌ها هست.
+- بخش زیادی از متن قدیمی هنوز از تابع `t()` می‌آید، با رشتهٔ فارسی و انگلیسی. متن تازهٔ معرفی، زبان و ظاهر در منابع رشته است. این ساخت روی گوشی یا شبیه‌ساز اجرا نشده است.
+
 ## 0.2.1 — 2026-11-26
 
 English

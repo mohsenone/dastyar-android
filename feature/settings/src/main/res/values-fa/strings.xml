@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_kicker">دستیار روی خود گوشی</string>
+    <string name="onboarding_title">دستیار روی همین گوشی می‌ماند</string>
+    <string name="onboarding_value_title">کلید را شما می‌آورید</string>
+    <string name="onboarding_value_body">سرور دستیار در میانه نیست. کلید، گفتگو و فایل روی دستگاه می‌ماند. ارائه‌دهنده را شما انتخاب می‌کنید و فقط همان پیام را می‌بیند.</string>
+    <string name="onboarding_privacy_title">قبل از عمل می‌پرسد</string>
+    <string name="onboarding_privacy_body">فرستادن پیام، تماس، پاک کردن فایل، یا لمس برنامهٔ دیگر منتظر شما می‌ماند. اجازه‌ها بعداً و یکی‌یکی می‌آیند. در اندروید ۱۳ و جدیدتر، نصب از بیرون فروشگاه ممکن است «اجازه به تنظیمات محدود» هم بخواهد.</string>
+    <string name="onboarding_language">زبان</string>
+    <string name="language_system">سیستم</string>
+    <string name="language_english">English</string>
+    <string name="language_persian">فارسی</string>
+    <string name="onboarding_back">قبلی</string>
+    <string name="onboarding_next">بعدی</string>
+    <string name="onboarding_permissions">اجازه‌ها چطور کار می‌کنند</string>
+    <string name="onboarding_add_key">افزودن کلید</string>
+    <string name="onboarding_skip">رفتن به گفتگو</string>
+    <string name="settings_appearance">ظاهر</string>
+    <string name="settings_theme">پوسته</string>
+    <string name="theme_system">سیستم</string>
+    <string name="theme_light">روشن</string>
+    <string name="theme_dark">تیره</string>
+    <string name="settings_color">رنگ‌ها</string>
+    <string name="color_brand">رنگ دستیار</string>
+    <string name="color_dynamic">پویای سیستم</string>
+    <string name="color_dynamic_hint">در اندروید ۱۲ و جدیدتر، رنگ پویا از کاغذدیواری می‌آید. رنگ دستیار همان سبزآبی و رسی است. گوشی‌های قدیمی‌تر روی رنگ دستیار می‌مانند.</string>
+    <string name="empty_routines_title">هنوز روالی نیست</string>
+    <string name="empty_routines_body">پایین یک روال با ساعت، پیامک یا اعلان بسازید. تا روشن نکنید اجرا نمی‌شود.</string>
+    <string name="empty_audit_title">هنوز اجرای ابزاری نیست</string>
+    <string name="empty_audit_body">کارهای تأییدشده زمان، ابزار و نتیجهٔ کوتاهِ سانسورشده را نشان می‌دهند.</string>
+    <string name="empty_memories_title">یادداشتی ذخیره نشده</string>
+    <string name="empty_memories_body">یادداشت‌هایی که شما یا مدل ذخیره می‌کنید روی همین گوشی می‌مانند. فهرست برداری در این نسخه نیست.</string>
+</resources>

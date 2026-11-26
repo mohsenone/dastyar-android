@@ -10,7 +10,7 @@ Package: `app.dastyar.agent`. Minimum Android 8.0 (API 26). Target API 35.
 
 Download the signed APK from [GitHub Releases](https://github.com/mohsenone/dastyar-android/releases). A Telegram post is optional: the release workflow uploads the same APK when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set, and prints a warning and continues when they are not. There is no Google Play or Cafe Bazaar listing.
 
-Android will ask you to allow installs from the browser or file manager. After install, open Dastyar. The first screen is Persian. Switch to English there, or later in Settings. Layout direction follows the language.
+Android will ask you to allow installs from the browser or file manager. After install, open Dastyar. A new install is English and left to right. Onboarding asks for **System**, **English**, or **فارسی** before the rest of the intro. The same switch is in Settings and applies immediately through Android’s per-app language. **System** follows the device locale. **English** forces English. **فارسی** forces Persian, right to left, with Vazirmatn. English uses Plus Jakarta Sans. A phone that already stored `fa` stays Persian; a missing language key does not. Settings also has theme (System / Light / Dark, system by default) and colors (Brand by default, or System dynamic on Android 12+). The splash screen uses the teal brand background.
 
 On Android 13 and later, a sideloaded APK cannot turn on Accessibility, notification access, SMS, or call log until you allow restricted settings. There is no button the app can press for you. Dastyar’s Permissions screen (end of the intro, and again in Settings) shows the live state of each grant and this path:
 
@@ -67,7 +67,7 @@ The audit log in Settings can be filtered, exported, and deleted. It stores a sh
 
 Speech recognition and text-to-speech use the engines installed on the phone, for Persian and English when those voices exist. Stop speech from the chat bar. If Persian recognition is missing, the error says so and English is the fallback for speech output.
 
-Conversations can be pinned, renamed, and searched. The chat bar opens the saved providers and that provider’s model list. Free models are first. Refresh asks the provider’s live catalog and keeps the last list if the network fails. Anthropic uses its models endpoint when the key can call it, and an offline list when it cannot. GitHub Models stays discontinued and is not fetched. Choosing a model applies to this chat. Save as app default does not rewrite chats that already stored their own model. Saved facts are a list the model can read and write. This version does not bundle an embedding model or Gemini Nano / a GGUF file. Settings explains that, and you can still save facts by hand.
+Conversations can be pinned, renamed, and searched. The chat bar opens the saved providers and that provider’s model list. Free models are first. Refresh asks the provider’s live catalog and keeps the last list if the network fails. Anthropic uses its models endpoint when the key can call it, and an offline list when it cannot. GitHub Models stays discontinued and is not fetched. Choosing a model applies to this chat. Save as app default does not rewrite chats that already stored their own model. Replies render headings, lists, links, inline code, and fenced code blocks with a language label. Tool calls sit in a card. A typing indicator shows while a reply is still empty. Saved facts are a list the model can read and write. This version does not bundle an embedding model or Gemini Nano / a GGUF file. Settings explains that, and you can still save facts by hand.
 
 ## Connectors (0.2.0)
 
@@ -152,7 +152,7 @@ Push a tag `v*` (or run the workflow by hand) on `main`. Missing signing secrets
 
 These need a phone. An emulator is not required to compile.
 
-1. Fresh install, Persian UI. Switch to English and back. Text direction should follow.
+1. Fresh install, English UI, left to right. Switch to فارسی and back, and try System. Direction and font should follow. A phone that already saved Persian should stay Persian after updating.
 2. Add a Groq, OpenRouter, Gemini, or custom base URL, test the connection, and send a chat. Tokens should stream.
 3. Ask for a calendar event and confirm the sheet before it is written.
 4. Ask to send an SMS and confirm the number and the full body.
@@ -171,4 +171,4 @@ There is no Dastyar account and no Dastyar server. Traffic goes to the provider 
 
 ## License of the font
 
-Vazirmatn is under the SIL Open Font License. See `third_party/fonts/OFL-vazirmatn.txt`.
+Plus Jakarta Sans (English) and Vazirmatn (Persian) are under the SIL Open Font License. See `third_party/fonts/OFL-plus-jakarta-sans.txt` and `third_party/fonts/OFL-vazirmatn.txt`.

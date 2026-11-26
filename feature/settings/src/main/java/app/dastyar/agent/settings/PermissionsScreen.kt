@@ -12,6 +12,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import app.dastyar.agent.ui.DastyarTopBar
+import app.dastyar.agent.ui.StatusChip
+import app.dastyar.agent.ui.StatusTone
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -55,7 +58,7 @@ fun PermissionsScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(t(lang, "اجازه‌ها", "Permissions"), style = MaterialTheme.typography.headlineSmall)
+        DastyarTopBar(t(lang, "اجازه‌ها", "Permissions"))
         Text(
             t(
                 lang,
@@ -87,7 +90,8 @@ fun PermissionsScreen(
             val why = if (lang.startsWith("fa")) item.whyFa else item.whyEn
             val next = if (lang.startsWith("fa")) item.nextFa else item.nextEn
             SectionCard(
-                title = "$title · ${stateLabel(lang, item.state)}",
+                title = title,
+                badge = { StatusChip(stateLabel(lang, item.state), toneFor(item.state)) },
                 body = "$why\n$next",
                 footer = {
                     if (item.state != AccessState.GRANTED) {
@@ -114,6 +118,13 @@ fun PermissionsScreen(
             }
         }
     }
+}
+
+private fun toneFor(state: AccessState): StatusTone = when (state) {
+    AccessState.GRANTED -> StatusTone.Positive
+    AccessState.MISSING -> StatusTone.Warning
+    AccessState.NEEDS_SETTINGS -> StatusTone.Warning
+    AccessState.MAYBE_RESTRICTED -> StatusTone.Danger
 }
 
 private fun stateLabel(lang: String, state: AccessState): String = when (state) {
