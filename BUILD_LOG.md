@@ -91,3 +91,25 @@
 - No tag `v0.3.0`, no `git push --tags`, and no GitHub Release in this pass. A supervisor will install this APK before any tag.
 - Unit-test XML on this machine: 49 tests, 0 failures, 0 errors (ModelCatalogTest 15, SseParserTest 4, ConfirmPolicyTest 5, ConnectorLogicTest 7, MessagingLinksTest 5, PermissionDiagnosticsTest 4, RemoteInputSelectionTest 3, RestrictedSettingsTest 6). This server has no emulator. The APK was not installed on a phone.
 - Nothing was sent to Telegram from this machine. The tag workflow finished successfully. Its Telegram step logged `TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is absent. Skipping Telegram upload.` Actions replaced the release body with the generic workflow text. The bilingual picker notes were written back with `gh release edit`. The APK stayed at 2,919,453 bytes.
+
+## 2026-11-26 — v0.3.0 publish
+
+The section above is the pre-tag local build. Its last bullet repeats the v0.2.1 Telegram outcome (2,919,453 bytes). This release’s APK is 3,169,019 bytes. The tag was not moved by this follow-up.
+
+### Publish
+
+- Commit tagged: `5a7542e` — Ship Dastyar 0.3.0 with a visual redesign and English as the default.
+- Annotated tag `v0.3.0` points at that commit.
+- Release: https://github.com/mohsenone/dastyar-android/releases/tag/v0.3.0
+- APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.3.0/app-release.apk (3,169,019 bytes, state uploaded). A locally signed APK of the same size was attached first so the release was not empty. Workflow run [45829720783](https://github.com/mohsenone/dastyar-android/actions/runs/45829720783) then published `app-release.apk` and replaced the asset. Both files are 3,169,019 bytes and the same signing certificate. Zip SHA-256 differs because Actions rebuilt the APK: local `ee7f9485d45f243600e43a67f6b6606c5b763c5f094561d6b60a725e6b6372c1`, release asset `505a2a139ae9f77ec3897bb29850b5f2fffe46d845dc46ee5fa742b666212491`.
+- `aapt dump badging` on the release asset reports `versionCode` 5 and `versionName` 0.3.0, package `app.dastyar.agent`, compileSdk 35, minSdk 26, targetSdk 35. `apksigner verify` succeeded with APK Signature Scheme v2. Certificate DN is `CN=Dastyar, OU=Mobile, O=Dastyar, C=IR`. SHA-1 `f2eab974ba099eb25a0b970d156f88aebf5fd950`. SHA-256 `9796073f30fec3e58e3fb9931103815b0205caa4060a4adc53fbc2b9ab19e453`. Same certificate as v0.2.0 and v0.2.1.
+- Nothing was sent to Telegram from this machine. The tag workflow finished successfully. Its Telegram step logged `TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is absent. Skipping Telegram upload.` Actions replaced the release body with the generic workflow text. The bilingual redesign notes were written back with `gh release edit`. The asset stayed `app-release.apk` at 3,169,019 bytes.
+
+### Emulator QA
+
+- A supervisor installed this APK on an emulator (API 35, headless TCG on a nested-virt host; KVM is not usable there) and walked onboarding, chat, the empty model picker, permissions, and settings, in English and Persian, light and dark. It was not tested on a physical phone.
+- Most older copy still uses the in-code `t()` helper.
+- The populated free-first model list was not exercised (no API key on the emulator). Only the empty picker state was.
+- On the English Permissions screen, the Persian «اجازه به تنظیمات محدود» (Allow restricted settings) steps are laid out LTR, so punctuation and numbering wrap incorrectly. The English steps on that screen, and the rest of the Persian UI in the fa locale, looked correct.
+- Opening the Providers tab left the framebuffer black twice while `uiautomator` still showed the provider catalog. Force-stopping the app restored drawing. No `AndroidRuntime` FATAL for `app.dastyar.agent` was seen. This may be the slow software emulator. It was not confirmed as an app crash.
+- Unit tests: 55, 0 failures (as already recorded before the signed assemble).
