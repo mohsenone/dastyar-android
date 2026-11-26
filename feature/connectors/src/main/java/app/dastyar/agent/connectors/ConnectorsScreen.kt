@@ -85,7 +85,12 @@ fun ConnectorsScreen(
             ),
             style = MaterialTheme.typography.bodyMedium,
         )
-        if (!anyConnected) {
+        if (state.rows.isEmpty()) {
+            Text(
+                t(lang, "در حال خواندن اتصال‌ها…", "Loading connectors…"),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        } else if (!anyConnected) {
             EmptyState(
                 icon = Icons.Outlined.Hub,
                 title = t(lang, "هنوز چیزی متصل نیست", "Nothing connected yet"),
@@ -100,45 +105,9 @@ fun ConnectorsScreen(
                 vm.prepareGoogle(clientId, redirect, secret, extra)?.let { googleLauncher.launch(it) }
             }
         }
-        TokenCard(
-            lang = lang,
-            title = "GitHub",
-            body = t(lang, "توکن شخصی کلاسیک یا fine-grained. ساختن issue و نظر تأیید می‌خواهد.", "A classic or fine-grained personal access token. Creating an issue or comment asks first."),
-            docs = "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens",
-            signup = "https://github.com/settings/tokens",
-            row = state.rows.first { it.id == ConnectorIds.GITHUB },
-            hasSecret = ConnectorIds.GITHUB in state.secrets,
-            onToggle = { vm.setEnabled(ConnectorIds.GITHUB, it) },
-            onSave = { vm.saveSecret(ConnectorIds.GITHUB, it) },
-            onClear = { vm.clearSecret(ConnectorIds.GITHUB) },
-            onTest = { vm.test(ConnectorIds.GITHUB) },
-        )
-        TokenCard(
-            lang = lang,
-            title = "Telegram Bot",
-            body = t(lang, "این API ربات است، نه کنترل خاموش حساب شخصی. توکن را از @BotFather بگیرید. ارسال تأیید می‌خواهد.", "This is the bot API, not silent control of your personal account. Get the token from @BotFather. Sending asks first."),
-            docs = "https://core.telegram.org/bots/api",
-            signup = "https://t.me/BotFather",
-            row = state.rows.first { it.id == ConnectorIds.TELEGRAM },
-            hasSecret = ConnectorIds.TELEGRAM in state.secrets,
-            onToggle = { vm.setEnabled(ConnectorIds.TELEGRAM, it) },
-            onSave = { vm.saveSecret(ConnectorIds.TELEGRAM, it) },
-            onClear = { vm.clearSecret(ConnectorIds.TELEGRAM) },
-            onTest = { vm.test(ConnectorIds.TELEGRAM) },
-        )
-        TokenCard(
-            lang = lang,
-            title = "Notion",
-            body = t(lang, "توکن یکپارچه‌سازی. صفحه را با همان integration به اشتراک بگذارید. نوشتن تأیید می‌خواهد.", "An integration token. Share the page with that integration. Writes ask first."),
-            docs = "https://developers.notion.com/docs/create-a-notion-integration",
-            signup = "https://www.notion.so/my-integrations",
-            row = state.rows.first { it.id == ConnectorIds.NOTION },
-            hasSecret = ConnectorIds.NOTION in state.secrets,
-            onToggle = { vm.setEnabled(ConnectorIds.NOTION, it) },
-            onSave = { vm.saveSecret(ConnectorIds.NOTION, it) },
-            onClear = { vm.clearSecret(ConnectorIds.NOTION) },
-            onTest = { vm.test(ConnectorIds.NOTION) },
-        )
+        TokenCatalogCard(state, lang, vm, ConnectorIds.GITHUB, "GitHub", t(lang, "توکن شخصی کلاسیک یا fine-grained. ساختن issue و نظر تأیید می‌خواهد.", "A classic or fine-grained personal access token. Creating an issue or comment asks first."), "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens", "https://github.com/settings/tokens")
+        TokenCatalogCard(state, lang, vm, ConnectorIds.TELEGRAM, "Telegram Bot", t(lang, "این API ربات است، نه کنترل خاموش حساب شخصی. توکن را از @BotFather بگیرید. ارسال تأیید می‌خواهد.", "This is the bot API, not silent control of your personal account. Get the token from @BotFather. Sending asks first."), "https://core.telegram.org/bots/api", "https://t.me/BotFather")
+        TokenCatalogCard(state, lang, vm, ConnectorIds.NOTION, "Notion", t(lang, "توکن یکپارچه‌سازی. صفحه را با همان integration به اشتراک بگذارید. نوشتن تأیید می‌خواهد.", "An integration token. Share the page with that integration. Writes ask first."), "https://developers.notion.com/docs/create-a-notion-integration", "https://www.notion.so/my-integrations")
         WebhookCard(state, vm, lang)
         SearchCard(state, vm, lang)
         RssCard(state, vm, lang)
@@ -157,7 +126,7 @@ private fun GoogleCard(
     lang: String,
     onSignIn: (String, String, String, Boolean) -> Unit,
 ) {
-    val row = state.rows.first { it.id == ConnectorIds.GOOGLE }
+    val row = connectorRow(state.rows, ConnectorIds.GOOGLE) ?: return
     val context = LocalContext.current
     var clientId by remember(state.snap.googleClientId) { mutableStateOf(state.snap.googleClientId) }
     var redirect by remember(state.snap.googleRedirect) { mutableStateOf(state.snap.googleRedirect) }
@@ -218,6 +187,33 @@ private fun GoogleCard(
 }
 
 @Composable
+private fun TokenCatalogCard(
+    state: ConnectorsUi,
+    lang: String,
+    vm: ConnectorsViewModel,
+    id: String,
+    title: String,
+    body: String,
+    docs: String,
+    signup: String,
+) {
+    val row = connectorRow(state.rows, id) ?: return
+    TokenCard(
+        lang = lang,
+        title = title,
+        body = body,
+        docs = docs,
+        signup = signup,
+        row = row,
+        hasSecret = id in state.secrets,
+        onToggle = { vm.setEnabled(id, it) },
+        onSave = { vm.saveSecret(id, it) },
+        onClear = { vm.clearSecret(id) },
+        onTest = { vm.test(id) },
+    )
+}
+
+@Composable
 private fun TokenCard(
     lang: String,
     title: String,
@@ -266,7 +262,7 @@ private fun TokenCard(
 
 @Composable
 private fun WebhookCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: String) {
-    val row = state.rows.first { it.id == ConnectorIds.WEBHOOK }
+    val row = connectorRow(state.rows, ConnectorIds.WEBHOOK) ?: return
     var url by remember(state.snap.webhookUrl) { mutableStateOf(state.snap.webhookUrl) }
     var header by remember(state.snap.webhookHeader) { mutableStateOf(state.snap.webhookHeader) }
     var secret by remember { mutableStateOf("") }
@@ -295,7 +291,7 @@ private fun WebhookCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: Stri
 
 @Composable
 private fun SearchCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: String) {
-    val row = state.rows.first { it.id == ConnectorIds.SEARCH }
+    val row = connectorRow(state.rows, ConnectorIds.SEARCH) ?: return
     val context = LocalContext.current
     var kind by remember(state.snap.searchKind) { mutableStateOf(state.snap.searchKind) }
     var base by remember(state.snap.searxngBase) { mutableStateOf(state.snap.searxngBase) }
@@ -339,7 +335,7 @@ private fun SearchCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: Strin
 
 @Composable
 private fun RssCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: String) {
-    val row = state.rows.first { it.id == ConnectorIds.RSS }
+    val row = connectorRow(state.rows, ConnectorIds.RSS) ?: return
     var text by remember(state.snap.rss) { mutableStateOf(state.snap.rss.joinToString("\n")) }
     SectionCard(
         title = "RSS",
@@ -363,7 +359,7 @@ private fun RssCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: String) 
 
 @Composable
 private fun WeatherCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: String) {
-    val row = state.rows.first { it.id == ConnectorIds.WEATHER }
+    val row = connectorRow(state.rows, ConnectorIds.WEATHER) ?: return
     val context = LocalContext.current
     var kind by remember(state.snap.weatherKind) { mutableStateOf(state.snap.weatherKind) }
     var key by remember { mutableStateOf("") }
@@ -399,7 +395,7 @@ private fun WeatherCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: Stri
 
 @Composable
 private fun McpCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: String) {
-    val row = state.rows.first { it.id == ConnectorIds.MCP }
+    val row = connectorRow(state.rows, ConnectorIds.MCP) ?: return
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
@@ -445,7 +441,7 @@ private fun McpCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: String) 
 
 @Composable
 private fun ShizukuCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: String, sha: String) {
-    val row = state.rows.first { it.id == ConnectorIds.SHIZUKU }
+    val row = connectorRow(state.rows, ConnectorIds.SHIZUKU) ?: return
     val context = LocalContext.current
     SectionCard(
         title = "Shizuku",

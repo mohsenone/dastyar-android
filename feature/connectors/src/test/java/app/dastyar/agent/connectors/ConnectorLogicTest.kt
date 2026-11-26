@@ -79,6 +79,22 @@ class ConnectorLogicTest {
     }
 
     @Test
+    fun rowLookupDoesNotThrowWhenTheSnapshotIsEmptyOrMissingAnId() {
+        ConnectorIds.catalog.forEach { id ->
+            assertNull(connectorRow(emptyList(), id))
+        }
+        val missingGithub = ConnectorIds.catalog
+            .filter { it != ConnectorIds.GITHUB }
+            .map { ConnectorRow(it, LinkStatus.OFF, "") }
+        assertNull(connectorRow(missingGithub, ConnectorIds.GITHUB))
+        assertEquals(ConnectorIds.TELEGRAM, connectorRow(missingGithub, ConnectorIds.TELEGRAM)?.id)
+        val one = listOf(ConnectorRow(ConnectorIds.RSS, LinkStatus.NEEDS_AUTH, ""))
+        ConnectorIds.catalog.filter { it != ConnectorIds.RSS }.forEach { id ->
+            assertNull(connectorRow(one, id))
+        }
+    }
+
+    @Test
     fun googleScopesStayLimitedUnlessTheUserOptsIn() {
         val base = GoogleScopes.request(false)
         assertTrue(GoogleScopes.GMAIL_SEND in base)

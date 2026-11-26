@@ -25,13 +25,13 @@ object RestrictedSettings {
     fun vendorNotes(lang: String): String = if (lang.startsWith("fa")) vendorFa() else vendorEn()
 
     fun vendorEn(): String = """
-        Samsung: the ⋮ menu can stay hidden until you try the blocked switch once. Sleeping apps and battery settings can also stop a routine.
+        Samsung: the three-dot menu can stay hidden until you try the blocked switch once. Sleeping apps and battery settings can also stop a routine.
         Xiaomi / MIUI: Autostart and Battery saver are separate from Android permissions. If a grant sticks and the app still dies, check those two screens. The wording changes by version.
         Huawei: App launch and battery may be locked on their own. This is not a promise that every skin shows the same menu.
     """.trimIndent()
 
     fun vendorFa(): String = """
-        سامسونگ: منوی ⋮ گاهی تا یک‌بار تلاش برای کلید مسدود دیده نمی‌شود. «برنامه‌های خواب» و باتری هم می‌توانند روال را متوقف کنند.
+        سامسونگ: منوی سه نقطه گاهی تا یک‌بار تلاش برای کلید مسدود دیده نمی‌شود. «برنامه‌های خواب» و باتری هم می‌توانند روال را متوقف کنند.
         شیائومی / MIUI: شروع خودکار و ذخیرهٔ باتری از اجازهٔ اندروید جدا هستند. اگر اجازه می‌ماند ولی برنامه بسته می‌شود، همان دو صفحه را ببینید. متن منو با نسخه عوض می‌شود.
         هواوی: اجرای برنامه و باتری ممکن است جدا قفل باشند. این وعده نیست که هر پوسته همان منو را نشان می‌دهد.
     """.trimIndent()
@@ -40,34 +40,48 @@ object RestrictedSettings {
         اجازه به تنظیمات محدود (برای نصب از بیرون فروشگاه):
         1. یک‌بار تلاش کنید اجازهٔ پیامک را بدهید یا دسترس‌پذیری را روشن کنید (ممکن است سیستم رد کند یا گزینه خاکستری باشد؛ این طبیعی است).
         2. دکمهٔ «باز کردن اطلاعات برنامه» را بزنید (یا: تنظیمات → برنامه‌ها → دستیار).
-        3. در گوشهٔ بالا منوی ⋮ (سه نقطه) را باز کنید.
+        3. در گوشهٔ بالا منوی سه نقطه را باز کنید.
         4. «Allow restricted settings» / «اجازه به تنظیمات محدود» / «مجاز کردن تنظیمات محدود» را انتخاب کنید. (متن دقیق به زبان و پوستهٔ گوشی بستگی دارد.)
         5. به همین صفحه برگردید و دوباره هر اجازه را روشن کنید: پیامک، دسترس‌پذیری (تنظیمات → دسترس‌پذیری → دستیار)، دسترسی به اعلان‌ها.
-        6. در اندروید ۱۵ این مرحله سخت‌تر است؛ اگر منوی ⋮ مورد را نشان نداد، یک‌بار دیگر تلاش برای فعال‌سازی را تکرار کنید تا گزینه ظاهر شود.
+        6. در اندروید ۱۵ این مرحله سخت‌تر است؛ اگر منوی سه نقطه مورد را نشان نداد، یک‌بار دیگر تلاش برای فعال‌سازی را تکرار کنید تا گزینه ظاهر شود.
     """.trimIndent()
 
     fun guideEn(): String = """
         Allow restricted settings (install from outside the store):
         1. Try once to grant SMS or turn Accessibility on. The system may refuse it or grey out the switch. That is expected.
         2. Tap Open app info (or Settings → Apps → Dastyar).
-        3. Open the ⋮ menu in the top corner.
+        3. Open the three-dot menu in the top corner.
         4. Choose Allow restricted settings. The exact words depend on the phone language and skin.
         5. Come back to this screen and turn each access on again: SMS, Accessibility (Settings → Accessibility → Dastyar), and notification access.
-        6. On Android 15 this step is stricter. If ⋮ does not list the item, try the blocked switch once more until the item appears.
+        6. On Android 15 this step is stricter. If the three-dot menu does not list the item, try the blocked switch once more until the item appears.
     """.trimIndent()
 }
 
 object ComponentLists {
+    /**
+     * `enabled_notification_listeners` and `enabled_accessibility_services` are colon-separated
+     * [android.content.ComponentName] strings. The form is unchanged on API 26–35.
+     * [android.content.ComponentName.flattenToString] shortens a class under the package, so
+     * `app.dastyar.agent.tools.DastyarNotificationListener` is stored as
+     * `app.dastyar.agent/.tools.DastyarNotificationListener`, not the fully qualified class.
+     */
     fun listed(flat: String?, packageName: String, className: String): Boolean {
-        if (flat.isNullOrBlank()) return false
+        if (flat.isNullOrBlank() || packageName.isBlank() || className.isBlank()) return false
         val short = className.substringAfterLast('.')
-        return flat.split(':').any { raw ->
-            val entry = raw.trim()
-            entry.equals("$packageName/$className", ignoreCase = true) ||
-                entry.equals("$packageName/.$short", ignoreCase = true) ||
-                entry.endsWith("/$className") ||
-                entry.endsWith("/.$short")
-        }
+        return flat.split(':').any { raw -> matches(raw.trim(), packageName, className, short) }
+    }
+
+    private fun matches(entry: String, packageName: String, className: String, short: String): Boolean {
+        if (entry.isEmpty()) return false
+        val sep = entry.indexOf('/')
+        if (sep <= 0 || sep >= entry.lastIndex) return false
+        val pkg = entry.substring(0, sep)
+        val rawClass = entry.substring(sep + 1)
+        val cls = if (rawClass.startsWith(".")) pkg + rawClass else rawClass
+        if (!pkg.equals(packageName, ignoreCase = true)) return false
+        if (cls.equals(className, ignoreCase = true)) return true
+        // Same package, simple name only: `pkg/.DastyarNotificationListener`.
+        return rawClass.equals(".$short", ignoreCase = true) || cls.equals("$packageName.$short", ignoreCase = true)
     }
 }
 

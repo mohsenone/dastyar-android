@@ -23,7 +23,10 @@ class PermissionDiagnosticsTest {
         val text = report.render("fa")
         assertTrue(text.contains("sms: MAYBE_RESTRICTED"))
         assertTrue(text.contains("اجازه به تنظیمات محدود"))
-        assertTrue(text.contains("⋮"))
+        assertTrue(text.contains("سه نقطه"))
+        assertFalse(text.contains("\u22EE"))
+        assertFalse(report.render("en").contains("\u22EE"))
+        assertTrue(report.render("en").contains("three-dot menu"))
     }
 
     @Test
@@ -61,9 +64,20 @@ class PermissionDiagnosticsTest {
 
     @Test
     fun enabledListenerThatIsNotConnectedAsksForAToggle() {
+        val older = PermissionDiagnostics.aggregate(
+            FakeProbe(sdkInt = 26, notificationListenerEnabled = true, notificationListenerConnected = false),
+        )
+        val api26 = older.items.first { it.id == "notification_listener" }
+        assertEquals(AccessState.NEEDS_SETTINGS, api26.state)
+        assertTrue(api26.nextEn.contains("Toggle"))
+        val api32 = PermissionDiagnostics.aggregate(
+            FakeProbe(sdkInt = 32, notificationListenerEnabled = true, notificationListenerConnected = false),
+        ).items.first { it.id == "notification_listener" }
+        assertEquals(AccessState.NEEDS_SETTINGS, api32.state)
+
         val report = PermissionDiagnostics.aggregate(
             FakeProbe(
-                sdkInt = 34,
+                sdkInt = 35,
                 notificationListenerEnabled = true,
                 notificationListenerConnected = false,
                 accessibilityEnabled = true,
@@ -71,8 +85,13 @@ class PermissionDiagnosticsTest {
             ),
         )
         val listener = report.items.first { it.id == "notification_listener" }
-        assertEquals(AccessState.NEEDS_SETTINGS, listener.state)
-        assertTrue(listener.nextEn.contains("Toggle"))
+        assertEquals(AccessState.MAYBE_RESTRICTED, listener.state)
+        assertTrue(listener.nextEn.contains("restricted settings"))
+        assertTrue(listener.nextEn.contains("three-dot menu"))
+        assertTrue(listener.nextEn.contains("off and on"))
+        assertFalse(listener.nextEn.contains("\u22EE"))
+        assertTrue(listener.nextFa.contains("سه نقطه"))
+        assertTrue(listener.nextFa.contains("اجازه به تنظیمات محدود"))
     }
 
     @Test

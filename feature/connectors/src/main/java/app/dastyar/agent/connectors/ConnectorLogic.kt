@@ -14,7 +14,14 @@ object ConnectorIds {
     const val WEATHER = "weather"
     const val MCP = "mcp"
     const val SHIZUKU = "shizuku"
+
+    val catalog = listOf(
+        GOOGLE, GITHUB, TELEGRAM, NOTION, WEBHOOK, SEARCH, RSS, WEATHER, MCP, SHIZUKU,
+    )
 }
+
+/** Null when the snapshot has not loaded or this catalog id is absent. Never throws. */
+fun connectorRow(rows: List<ConnectorRow>, id: String): ConnectorRow? = rows.firstOrNull { it.id == id }
 
 enum class LinkStatus { OFF, NEEDS_AUTH, CONNECTED, ERROR }
 

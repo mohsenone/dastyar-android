@@ -35,12 +35,17 @@ class RestrictedSettingsTest {
         val fa = RestrictedSettings.guideFa()
         val en = RestrictedSettings.guideEn()
         assertTrue(fa.contains("اجازه به تنظیمات محدود"))
-        assertTrue(fa.contains("⋮"))
+        assertTrue(fa.contains("سه نقطه"))
         assertTrue(fa.contains("اندروید ۱۵"))
+        assertFalse(fa.contains("\u22EE"))
         assertTrue(en.contains("Allow restricted settings"))
+        assertTrue(en.contains("three-dot menu"))
         assertTrue(en.contains("Android 15"))
+        assertFalse(en.contains("\u22EE"))
         assertTrue(RestrictedSettings.guide("fa").contains("سه نقطه"))
         assertTrue(RestrictedSettings.guide("en").contains("Open app info"))
+        assertFalse(RestrictedSettings.guide("en").contains("\u22EE"))
+        assertFalse(RestrictedSettings.guide("fa").contains("\u22EE"))
     }
 
     @Test
@@ -62,13 +67,17 @@ class RestrictedSettingsTest {
         val en = RestrictedSettings.vendorNotes("en")
         val fa = RestrictedSettings.vendorNotes("fa")
         assertTrue(en.contains("Samsung"))
+        assertTrue(en.contains("three-dot menu"))
         assertTrue(en.contains("Xiaomi"))
         assertTrue(en.contains("Huawei"))
         assertTrue(en.contains("not a promise"))
+        assertFalse(en.contains("\u22EE"))
         assertTrue(fa.contains("سامسونگ"))
+        assertTrue(fa.contains("سه نقطه"))
         assertTrue(fa.contains("شیائومی"))
         assertTrue(fa.contains("هواوی"))
         assertTrue(fa.contains("وعده نیست"))
+        assertFalse(fa.contains("\u22EE"))
     }
 
     @Test
@@ -78,5 +87,22 @@ class RestrictedSettingsTest {
         assertTrue(ComponentLists.listed("app.dastyar.agent/.DastyarNotificationListener", "app.dastyar.agent", PermissionDiagnostics.LISTENER_CLASS))
         assertFalse(ComponentLists.listed(flat, "app.dastyar.agent", PermissionDiagnostics.LISTENER_CLASS))
         assertFalse(ComponentLists.listed(null, "app.dastyar.agent", PermissionDiagnostics.A11Y_CLASS))
+        assertFalse(ComponentLists.listed("", "app.dastyar.agent", PermissionDiagnostics.LISTENER_CLASS))
+        assertFalse(ComponentLists.listed("   ", "app.dastyar.agent", PermissionDiagnostics.LISTENER_CLASS))
+    }
+
+    @Test
+    fun componentListMatchesApi26To35FlattenedNestedClassNames() {
+        val pkg = "app.dastyar.agent"
+        val listener = PermissionDiagnostics.LISTENER_CLASS
+        val a11y = PermissionDiagnostics.A11Y_CLASS
+        assertTrue(ComponentLists.listed("$pkg/$listener", pkg, listener))
+        assertTrue(ComponentLists.listed("$pkg/.tools.DastyarNotificationListener", pkg, listener))
+        assertTrue(ComponentLists.listed("$pkg/.tools.DastyarAccessibilityService", pkg, a11y))
+        val mixed = "com.other/.Other:$pkg/.tools.DastyarNotificationListener:$pkg/$a11y"
+        assertTrue(ComponentLists.listed(mixed, pkg, listener))
+        assertTrue(ComponentLists.listed(mixed, pkg, a11y))
+        assertFalse(ComponentLists.listed("com.other/.tools.DastyarNotificationListener", pkg, listener))
+        assertFalse(ComponentLists.listed("$pkg/.tools.OtherService", pkg, listener))
     }
 }

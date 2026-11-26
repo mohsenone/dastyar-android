@@ -437,29 +437,35 @@ object PermissionDiagnostics {
     }
 
     private fun listenerItem(probe: AccessProbe): AccessItem {
+        val listed = probe.notificationListenerEnabled
+        val connected = probe.notificationListenerConnected
+        val restrictedSdk = RestrictedSettings.applies(probe.sdkInt)
+        // A secure-setting write can list the listener while Android 13+ still refuses to bind a
+        // sideloaded app until Allow restricted settings. That is not a granted listener.
         val state = when {
-            probe.notificationListenerEnabled && probe.notificationListenerConnected -> AccessState.GRANTED
-            probe.notificationListenerEnabled -> AccessState.NEEDS_SETTINGS
-            RestrictedSettings.applies(probe.sdkInt) -> AccessState.MAYBE_RESTRICTED
+            listed && connected -> AccessState.GRANTED
+            listed && restrictedSdk -> AccessState.MAYBE_RESTRICTED
+            listed -> AccessState.NEEDS_SETTINGS
+            restrictedSdk -> AccessState.MAYBE_RESTRICTED
             else -> AccessState.NEEDS_SETTINGS
         }
-        val nextFa = when (state) {
-            AccessState.GRANTED -> "وصل است."
-            AccessState.NEEDS_SETTINGS -> if (probe.notificationListenerEnabled) {
-                "روشن است ولی وصل نیست. یک‌بار خاموش و روشن کنید."
-            } else {
-                "دسترسی به اعلان را باز کنید و دستیار را روشن کنید."
-            }
-            else -> "اگر کلید خاکستری است یا فوراً رد می‌شود، اول اجازه به تنظیمات محدود را بدهید، بعد اعلان را روشن کنید."
+        val nextFa = when {
+            state == AccessState.GRANTED -> "وصل است."
+            listed && restrictedSdk ->
+                "در دسترسی به اعلان نوشته شده، ولی اندروید شنونده را وصل نکرده. روی نصب از بیرون فروشگاه این معمولاً یعنی اجازه به تنظیمات محدود هنوز داده نشده. اطلاعات برنامه را باز کنید، منوی سه نقطه، اجازه به تنظیمات محدود، بعد دسترسی به اعلان را یک‌بار خاموش و روشن کنید."
+            listed -> "روشن است ولی وصل نیست. یک‌بار خاموش و روشن کنید."
+            state == AccessState.MAYBE_RESTRICTED ->
+                "اگر کلید خاکستری است یا فوراً رد می‌شود، اول اجازه به تنظیمات محدود را بدهید، بعد اعلان را روشن کنید."
+            else -> "دسترسی به اعلان را باز کنید و دستیار را روشن کنید."
         }
-        val nextEn = when (state) {
-            AccessState.GRANTED -> "Connected."
-            AccessState.NEEDS_SETTINGS -> if (probe.notificationListenerEnabled) {
-                "Enabled but not connected. Toggle it off and on."
-            } else {
-                "Open notification access and turn Dastyar on."
-            }
-            else -> "If the switch is grey or the grant fails at once, allow restricted settings, then turn notification access on."
+        val nextEn = when {
+            state == AccessState.GRANTED -> "Connected."
+            listed && restrictedSdk ->
+                "Notification access lists Dastyar, but Android has not connected the listener. On a sideloaded install this usually means Allow restricted settings is still off. Open app info, open the three-dot menu, allow restricted settings, then turn notification access off and on."
+            listed -> "Enabled but not connected. Toggle it off and on."
+            state == AccessState.MAYBE_RESTRICTED ->
+                "If the switch is grey or the grant fails at once, allow restricted settings, then turn notification access on."
+            else -> "Open notification access and turn Dastyar on."
         }
         return item(
             "notification_listener",
@@ -584,8 +590,8 @@ object PermissionDiagnostics {
             "گفتگوی سیستم دیگر نشان داده نمی‌شود. اطلاعات برنامه را باز کنید و اجازه را آنجا بدهید." to
                 "The system will not show the dialog again. Open app settings and allow it there."
         AccessState.MAYBE_RESTRICTED ->
-            "یک‌بار اجازه را بخواهید. اگر فوراً رد شد، اطلاعات برنامه را باز کنید، منوی ⋮، اجازه به تنظیمات محدود، بعد دوباره تلاش کنید." to
-                "Request the grant once. If it is denied immediately, open app info, the ⋮ menu, Allow restricted settings, then try again."
+            "یک‌بار اجازه را بخواهید. اگر فوراً رد شد، اطلاعات برنامه را باز کنید، منوی سه نقطه، اجازه به تنظیمات محدود، بعد دوباره تلاش کنید." to
+                "Request the grant once. If it is denied immediately, open app info, the three-dot menu, Allow restricted settings, then try again."
     }
 
     private fun item(

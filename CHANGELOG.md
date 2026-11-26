@@ -2,6 +2,20 @@
 
 ## 0.4.0 — 2026-11-26
 
+Follow-up, still `versionCode` 6 and `versionName` 0.4.0. No tag and no GitHub Release.
+
+English
+
+- Connectors stays open when the snapshot has not loaded or is missing a catalog id. Looking up a row no longer throws.
+- The restricted-settings guide, the other-language block, and the Samsung / Xiaomi / Huawei notes say "three-dot menu" or "منوی سه نقطه". The fonts do not draw a vertical ellipsis.
+- Notification access that is listed but not connected on Android 13+ says a sideloaded install may still need Allow restricted settings, then a toggle off and on. The component check accepts the flattened `package/.tools.Class` form Android stores on API 26–35.
+
+فارسی
+
+- اتصال‌ها وقتی فهرست هنوز نرسیده یا یک شناسه نیست باز می‌ماند و دیگر نمی‌ترکد.
+- راهنمای تنظیمات محدود و یادداشت سامسونگ، شیائومی و هواوی به‌جای نویسه‌ای که فونت ندارد، «منوی سه نقطه» یا three-dot menu می‌گوید.
+- اگر دسترسی به اعلان در تنظیم نوشته شده ولی شنونده وصل نشده، در اندروید ۱۳ و جدیدتر می‌گوید نصب از بیرون فروشگاه ممکن است هنوز اجازه به تنظیمات محدود بخواهد، بعد یک‌بار خاموش و روشن. تطبیق جزء، شکل کوتاه‌شدهٔ `package/.tools.Class` را هم می‌پذیرد.
+
 English
 
 - Permission setup is a status list, a capability wizard, and Fix everything. Fix everything walks only missing items and skips all-files access and Shizuku. Status refreshes when the activity resumes. A denial that Android will not ask again opens app settings instead of a dead dialog. Background location is requested only after fine or coarse location. Android 13+ restricted settings stay a manual App info → ⋮ step. Persian guide text is right-to-left even when the app language is English. The other language is shown in its own direction.
