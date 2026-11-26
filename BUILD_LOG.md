@@ -58,4 +58,9 @@
 
 ### Publish
 
-- URLs are filled in after `gh release view v0.2.0` shows the APK.
+- Commit: `f599a8a` — Ship Dastyar 0.2.0 with connectors and deeper device control.
+- Annotated tag `v0.2.0` points at that commit.
+- Release: https://github.com/mohsenone/dastyar-android/releases/tag/v0.2.0
+- APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.2.0/app-release.apk (2,886,685 bytes, state uploaded). The same bytes are also at https://github.com/mohsenone/dastyar-android/releases/download/v0.2.0/dastyar-0.2.0.apk
+- `aapt dump badging` reports `versionCode` 3 and `versionName` 0.2.0, package `app.dastyar.agent`. `apksigner verify` succeeded with APK Signature Scheme v2 and certificate CN=Dastyar.
+- Nothing was sent to Telegram from this machine. The tag workflow (run 45787227870) was started by the tag push and was still running when this note was written. Its Telegram step is the existing workflow step; it was not invoked by hand. If that job replaces the release body, the bilingual notes in `/tmp` are applied again with `gh release edit`.
