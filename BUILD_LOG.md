@@ -187,3 +187,35 @@ The sections above are the pre-tag local builds. The first 0.4.0 APK (`787cd3d2�
 - Signed APK: `/tmp/dastyar-0.5.0.apk` (3,245,011 bytes). SHA-256 `12e1ad75d3b49d59e35dae5db4bbe6557ea5ad6170a77ec655bd4a21f2c3489b`. `apksigner verify` succeeded with APK Signature Scheme v2. Certificate DN `CN=Dastyar, OU=Mobile, O=Dastyar, C=IR`. SHA-1 `f2eab974ba099eb25a0b970d156f88aebf5fd950`. SHA-256 `9796073f30fec3e58e3fb9931103815b0205caa4060a4adc53fbc2b9ab19e453`. Same certificate as v0.4.0. `/tmp/dastyar-0.4.0.apk` and `/tmp/dastyar-0.3.0.apk` were left in place.
 - `aapt dump badging` reports package `app.dastyar.agent`, `versionCode` 7, `versionName` 0.5.0, minSdk 26, targetSdk 35, compileSdk 35.
 - This server has no emulator. The APK was not installed here. Nothing was sent to Telegram.
+
+## 2026-11-26 — v0.5.0 publish
+
+The section above is the pre-tag local build. This follow-up does not move `v0.5.0`.
+
+### Publish
+
+- Commit tagged: `fba63b9` — Ship Dastyar 0.5.0 with a chat-first menu and a safer Connectors screen. That commit is `versionCode` 7 and `versionName` 0.5.0.
+- Annotated tag `v0.5.0` points at `fba63b9230f0455d0bb9578adcb7c127b2115a1a` (tag object `0d59e534ca26a75f1f88be8c8d7fa800b59e2953`). It was not force-pushed. This docs commit does not move the tag.
+- Release: https://github.com/mohsenone/dastyar-android/releases/tag/v0.5.0
+- APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.5.0/app-release.apk (3,245,011 bytes, state uploaded). A locally signed APK of the same size was attached first so the release was not empty. Workflow run [45901840532](https://github.com/mohsenone/dastyar-android/actions/runs/45901840532) then deleted that asset and uploaded its own `app-release.apk`. Both files are 3,245,011 bytes and the same signing certificate. Zip SHA-256 differs because Actions rebuilt the APK from the tag: local (the file the supervisor installed) `12e1ad75d3b49d59e35dae5db4bbe6557ea5ad6170a77ec655bd4a21f2c3489b`, release asset `9ff886da3c70b1fa985f85e03bf3e6ab10eceaa9f8a884af0786760498e9bae2`.
+- `aapt dump badging` on the release asset reports package `app.dastyar.agent`, `versionCode` 7, `versionName` 0.5.0, compileSdk 35, minSdk 26, targetSdk 35. `apksigner verify` succeeded with APK Signature Scheme v2. Certificate DN is `CN=Dastyar, OU=Mobile, O=Dastyar, C=IR`. SHA-1 `f2eab974ba099eb25a0b970d156f88aebf5fd950`. SHA-256 `9796073f30fec3e58e3fb9931103815b0205caa4060a4adc53fbc2b9ab19e453`. Same certificate as v0.4.0 and the local 0.5.0 APK.
+- Nothing was sent to Telegram from this machine. The tag workflow’s existing Telegram step ran and logged `TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is absent. Skipping Telegram upload.` This pass did not call the Telegram API itself.
+- Actions replaced the release body with the generic workflow text (`Dastyar (دستیار) — on-device AI agent`, plus a generated Full Changelog link). The bilingual notes were written back with `gh release edit` after the workflow finished. The asset stayed `app-release.apk` at 3,245,011 bytes.
+
+### Emulator QA
+
+A supervisor installed the local APK (`12e1ad75…`, built from `fba63b9`) on an official Android SDK emulator: API 35 `google_apis` x86_64, Pixel 6 profile, headless TCG with SwiftShader. KVM is not usable on that host. It was not tested on a physical phone.
+
+Fresh install: onboarding, chat (no bottom tab bar), the hamburger drawer, Providers, Connectors, Routines, Settings, then Persian and right-to-left (Settings, chat, the drawer, and Connectors). The process stayed alive. No `AndroidRuntime` FATAL for `app.dastyar.agent`.
+
+Upgrade path: uninstall, install official v0.3.0, open Links. That still crashes on 0.3.0 with the known empty-snapshot `NoSuchElementException` (`state.rows.first { … }`). Official v0.4.0 (`0e6a8f7`) already fixed that. Install official v0.4.0 over that profile: Connectors opened, the process stayed alive, no FATAL. Install v0.5.0 over that: the drawer and Connectors opened, the process stayed alive, no FATAL. Room data from the 0.3.0 profile survived. Room stays at version 3.
+
+The remaining real-phone crash, reported on official v0.4.0 even after `0e6a8f7`: opening Connectors constructed AppAuth’s `AuthorizationService` immediately. AppAuth 0.11.1 reads `PackageInfo.signatures` via deprecated `GET_SIGNATURES` and only catches `NameNotFoundException`. On API 28+ that array is often null, so the constructor throws and the process dies. Fresh emulator images often still fill the field, which is why the earlier fix looked fine there. v0.5.0 creates the service lazily inside `runCatching`. Corrupt connector JSON, vault throws, and Shizuku or the signing SHA-1 during composition were also hardened. That specific null-signatures crash was diagnosed from code and was not reproduced on this emulator. Someone on a real Android 14 or 15 phone should open Connectors again after installing 0.5.0.
+
+The first launch of a newly installed APK on this TCG emulator can show “Dastyar isn't responding” with reason `No response to onStartJob` (WorkManager). That is emulator speed, not a Connectors crash. After `cmd package compile -m speed`, the walk had no ANR in the cleared logcat. This may not appear on a real phone.
+
+A live tool call was not driven with an API key. The home-screen widget and the quick-settings tile were not pinned or tapped. Share-in was not re-tested as its own pass. The v0.4.0 grant and revoke permission matrix was not re-run in full for 0.5.0. The permission model was kept as it was (wizard, Fix everything, live status, restricted-settings guide, confirmation floor).
+
+Chat is the home screen and fills the screen. The bottom tab bar is gone. The hamburger opens a modal drawer: Chat, Providers, Connectors, Routines, Settings. Material 3 polish in this release is rounded cards, a chat empty state, an input bar with the model picker, consistent drawer destinations, English by default, and Persian right to left.
+
+Unit tests at `fba63b9`: 76 debug unit tests, 0 failures, 14 suites. Release-variant unit tests were not re-run in this pass. There are no instrumented tests. The build server has no emulator.
