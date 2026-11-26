@@ -15,9 +15,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.Image
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -32,16 +35,20 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -241,9 +248,23 @@ class MainActivity : AppCompatActivity() {
         ) {
             DastyarTheme(dark = dark, dynamicColor = settings.colorMode == Appearance.DYNAMIC) {
                 val nav = rememberNavController()
+                val drawerState = rememberDrawerState(DrawerValue.Closed)
+                fun androidx.navigation.NavHostController.goMenu(dest: String) {
+                    val target = AppRoutes.restoreOrHome(dest)
+                    if (AppRoutes.base(currentDestination?.route) == AppRoutes.base(target)) return
+                    val startId = runCatching { graph.findStartDestination().id }.getOrNull()
+                    runCatching {
+                        navigate(target) {
+                            if (startId != null) popUpTo(startId) { saveState = false }
+                            launchSingleTop = true
+                            restoreState = false
+                        }
+                    }
+                }
                 val back by nav.currentBackStackEntryAsState()
                 val route = back?.destination?.route
                 val scope = rememberCoroutineScope()
+                val openMenu: () -> Unit = { scope.launch { drawerState.open() } }
                 val pending by confirm.requests.collectAsStateWithLifecycle()
                 var perm by remember { mutableStateOf<UiRequest.Permissions?>(null) }
                 var permNeeded by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -359,7 +380,7 @@ class MainActivity : AppCompatActivity() {
                 LaunchedEffect(Unit) {
                     routes.collect { dest ->
                         if (!dest.isNullOrBlank()) {
-                            nav.navigate(dest) { launchSingleTop = true }
+                            nav.goMenu(dest)
                             routes.value = null
                         }
                     }
@@ -437,22 +458,65 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val start = if (Bootstrap.onboardingDone(this) || settings.onboardingDone) "chat" else "onboarding"
-                Scaffold(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    snackbarHost = { DastyarSnackbarHost(snackbar) },
-                    bottomBar = {
-                        if (route in TOP) {
-                            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-                                NavItem(nav, route, "chat", stringResource(R.string.nav_chat), Icons.AutoMirrored.Outlined.Chat)
-                                NavItem(nav, route, "providers", stringResource(R.string.nav_providers), Icons.Outlined.Key)
-                                NavItem(nav, route, "connectors", stringResource(R.string.nav_connectors), Icons.Outlined.Hub)
-                                NavItem(nav, route, "routines", stringResource(R.string.nav_routines), Icons.Outlined.Schedule)
-                                NavItem(nav, route, "settings", stringResource(R.string.nav_settings), Icons.Outlined.Settings)
+                val menuLabel = stringResource(R.string.nav_menu)
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    gesturesEnabled = AppRoutes.base(route) != "onboarding",
+                    drawerContent = {
+                        ModalDrawerSheet {
+                            Text(
+                                stringResource(R.string.app_name),
+                                modifier = Modifier.padding(horizontal = 28.dp, vertical = 24.dp),
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                            Text(
+                                menuLabel,
+                                modifier = Modifier.padding(horizontal = 28.dp),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 12.dp))
+                            Column(
+                                Modifier.padding(horizontal = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                data class Item(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+                                val items = listOf(
+                                    Item(AppRoutes.CHAT, stringResource(R.string.nav_chat), Icons.AutoMirrored.Outlined.Chat),
+                                    Item(AppRoutes.PROVIDERS, stringResource(R.string.nav_providers), Icons.Outlined.Key),
+                                    Item(AppRoutes.CONNECTORS, stringResource(R.string.nav_connectors), Icons.Outlined.Hub),
+                                    Item(AppRoutes.ROUTINES, stringResource(R.string.nav_routines), Icons.Outlined.Schedule),
+                                    Item(AppRoutes.SETTINGS, stringResource(R.string.nav_settings), Icons.Outlined.Settings),
+                                )
+                                items.forEach { item ->
+                                    NavigationDrawerItem(
+                                        selected = AppRoutes.base(route) == item.route,
+                                        onClick = {
+                                            scope.launch { drawerState.close() }
+                                            nav.goMenu(item.route)
+                                        },
+                                        icon = { Icon(item.icon, contentDescription = null) },
+                                        label = { Text(item.label) },
+                                        shape = MaterialTheme.shapes.medium,
+                                    )
+                                }
                             }
                         }
                     },
+                ) {
+                Scaffold(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    snackbarHost = { DastyarSnackbarHost(snackbar) },
                 ) { padding ->
-                    NavHost(nav, startDestination = start, modifier = Modifier.padding(padding).fillMaxSize()) {
+                    NavHost(
+                        nav,
+                        startDestination = start,
+                        modifier = Modifier.padding(padding).fillMaxSize(),
+                        enterTransition = { fadeIn(tween(160)) },
+                        exitTransition = { fadeOut(tween(120)) },
+                        popEnterTransition = { fadeIn(tween(160)) },
+                        popExitTransition = { fadeOut(tween(120)) },
+                    ) {
                         composable("onboarding") {
                             OnboardingScreen(
                                 vm = settingsVm,
@@ -477,6 +541,7 @@ class MainActivity : AppCompatActivity() {
                         composable("chat") {
                             ChatScreen(
                                 vm = chatVm,
+                                onOpenMenu = openMenu,
                                 ensureMic = {
                                     ui.ensurePermissions(
                                         listOf(Manifest.permission.RECORD_AUDIO),
@@ -512,14 +577,19 @@ class MainActivity : AppCompatActivity() {
                                         path
                                     }
                                 },
-                                onOpenProviders = { nav.navigate("providers") },
+                                onOpenProviders = { nav.goMenu("providers") },
                             )
                         }
-                        composable("providers") { ProvidersScreen() }
+                        composable("providers") { ProvidersScreen(onOpenMenu = openMenu) }
                         composable("connectors") {
-                            ConnectorsScreen(onPermissions = { nav.navigate("permissions?onboarding=0") })
+                            ConnectorsScreen(
+                                onPermissions = { nav.navigate("permissions?onboarding=0") },
+                                onOpenMenu = openMenu,
+                            )
                         }
-                        composable("routines") { RoutinesScreen(settingsVm, onExactAlarm = ui::openExactAlarmSettings) }
+                        composable("routines") {
+                            RoutinesScreen(settingsVm, onExactAlarm = ui::openExactAlarmSettings, onOpenMenu = openMenu)
+                        }
                         composable("settings") {
                             SettingsScreen(
                                 vm = settingsVm,
@@ -535,6 +605,7 @@ class MainActivity : AppCompatActivity() {
                                 onPickFolder = {
                                     scope.launch { ui.pickDirectory() }
                                 },
+                                onOpenMenu = openMenu,
                             )
                         }
                         composable(
@@ -685,6 +756,7 @@ class MainActivity : AppCompatActivity() {
                                         "battery" -> ui.openBatterySettings()
                                     }
                                 },
+                                onBack = { nav.popBackStack() },
                             )
                         }
                         composable("privacy") {
@@ -695,12 +767,18 @@ class MainActivity : AppCompatActivity() {
                             )
                         }
                         composable("audit") {
-                            AuditScreen(settingsVm) { text ->
-                                val uri = ui.createDocument("dastyar-audit.txt", "text/plain") ?: return@AuditScreen
-                                contentResolver.openOutputStream(Uri.parse(uri))?.use { it.write(text.toByteArray()) }
-                            }
+                            AuditScreen(
+                                vm = settingsVm,
+                                onExport = { text ->
+                                    val uri = ui.createDocument("dastyar-audit.txt", "text/plain") ?: return@AuditScreen
+                                    contentResolver.openOutputStream(Uri.parse(uri))?.use { it.write(text.toByteArray()) }
+                                },
+                                onBack = { nav.popBackStack() },
+                            )
                         }
-                        composable("memories") { MemoriesScreen(settingsVm) }
+                        composable("memories") {
+                            MemoriesScreen(settingsVm, onBack = { nav.popBackStack() })
+                        }
                         composable("disclosure") {
                             DisclosureScreen(
                                 vm = settingsVm,
@@ -810,28 +888,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-    }
-
-    @Composable
-    private fun RowScope.NavItem(
-        nav: androidx.navigation.NavHostController,
-        current: String?,
-        route: String,
-        label: String,
-        icon: androidx.compose.ui.graphics.vector.ImageVector,
-    ) {
-        NavigationBarItem(
-            selected = current == route,
-            onClick = {
-                nav.navigate(route) {
-                    popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            },
-            icon = { Icon(icon, contentDescription = label) },
-            label = { Text(label) },
-        )
+        }
     }
 
     companion object {
@@ -839,7 +896,6 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_OPEN_CHAT = "app.dastyar.agent.OPEN_CHAT"
         const val ACTION_VOICE = "app.dastyar.agent.VOICE"
         const val ACTION_ROUTINE = "app.dastyar.agent.ROUTINE"
-        private val TOP = setOf("chat", "providers", "connectors", "routines", "settings")
         private var pendingPhoto: String? = null
         private var pendingVideo: String? = null
 

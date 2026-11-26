@@ -92,6 +92,9 @@
         <package android:name="org.thunderdog.challegram" />
         <package android:name="com.instagram.android" />
         <package android:name="com.android.chrome" />
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
         <package android:name="moe.shizuku.privileged.api" />
     </queries>
 

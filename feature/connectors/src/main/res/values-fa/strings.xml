@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="connector_title">اتصال‌ها</string>
+    <string name="connector_loading">در حال خواندن اتصال‌ها…</string>
+    <string name="connector_permissions">اجازه‌ها، دسترس‌پذیری، اعلان</string>
+    <string name="connector_screen_error_title">اتصال‌ها خوانده نشد</string>
+    <string name="connector_screen_error_body">تنظیم ذخیره‌شده دست نخورده ماند. بقیهٔ فهرست هنوز باز می‌شود. دوباره تلاش کنید، یا هر اتصال را جدا ببینید.</string>
+    <string name="connector_card_error">این اتصال خوانده نشد</string>
+    <string name="connector_retry">تلاش دوباره</string>
+</resources>

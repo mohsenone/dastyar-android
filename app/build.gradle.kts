@@ -16,8 +16,8 @@ android {
         applicationId = "app.dastyar.agent"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.4.0"
+        versionCode = 7
+        versionName = "0.5.0"
         vectorDrawables.useSupportLibrary = true
         manifestPlaceholders["appAuthRedirectScheme"] = "app.dastyar.agent"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -131,4 +131,5 @@ dependencies {
     implementation(libs.biometric)
     implementation(libs.browser)
     implementation(libs.androidx.splash)
+    testImplementation(libs.junit)
 }

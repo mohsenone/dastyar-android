@@ -52,6 +52,7 @@ fun PermissionsScreen(
     onProviders: () -> Unit,
     onChat: () -> Unit,
     onPrivacy: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -73,7 +74,7 @@ fun PermissionsScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
-        DastyarTopBar(stringResource(R.string.perm_title))
+        DastyarTopBar(stringResource(R.string.perm_title), navigation = { app.dastyar.agent.ui.BackNavigation(onBack) })
         Text(stringResource(R.string.perm_intro), style = MaterialTheme.typography.bodyMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             FilterChip(

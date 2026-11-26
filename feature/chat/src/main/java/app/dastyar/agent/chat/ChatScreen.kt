@@ -5,7 +5,9 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.dastyar.agent.data.MessageEntity
 import app.dastyar.agent.ui.EmptyState
+import app.dastyar.agent.ui.MenuNavigation
 import app.dastyar.agent.ui.ErrorBanner
 import app.dastyar.agent.ui.Space
 import app.dastyar.agent.ui.StatusChip
@@ -74,6 +77,7 @@ fun ChatScreen(
     takePhoto: suspend () -> String?,
     pickImage: suspend () -> String?,
     onOpenProviders: () -> Unit,
+    onOpenMenu: () -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -89,12 +93,13 @@ fun ChatScreen(
     }
     LaunchedEffect(state.messages.size, state.draft, state.running) {
         val last = state.messages.lastIndex + if (state.draft.isNotBlank() || state.running) 1 else 0
-        if (last >= 0) listState.animateScrollToItem(last.coerceAtLeast(0))
+        if (last >= 0) runCatching { listState.animateScrollToItem(last.coerceAtLeast(0)) }
     }
 
     Box(Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
             drawerState = drawer,
+            gesturesEnabled = false,
             drawerContent = {
                 ModalDrawerSheet {
                     Text(
@@ -155,8 +160,9 @@ fun ChatScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s4),
                     ) {
+                        MenuNavigation(onOpenMenu)
                         IconButton(onClick = { scope.launch { drawer.open() } }) {
-                            Icon(Icons.Outlined.Menu, contentDescription = t(lang, "گفتگوها", "Chats"))
+                            Icon(Icons.Outlined.Forum, contentDescription = t(lang, "گفتگوها", "Chats"))
                         }
                         ModelChip(state, Modifier.weight(1f), vm::openModelPicker)
                         IconButton(onClick = vm::newChat) {
@@ -319,8 +325,9 @@ private fun ComposerBar(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s8),
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = 3.dp,
-        shadowElevation = 6.dp,
+        tonalElevation = 1.dp,
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(Space.s4)) {
             IconButton(onClick = {
@@ -395,6 +402,7 @@ private fun ToolCallCard(name: String, status: String, detail: String, error: Bo
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 1.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(Modifier.padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
@@ -415,8 +423,9 @@ private fun UserBubble(text: String, lang: String) {
             modifier = Modifier.fillMaxWidth(0.88f),
             color = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            shape = MaterialTheme.shapes.large,
+            shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 22.dp, bottomEnd = 6.dp),
             tonalElevation = 1.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
         ) {
             MarkdownMessage(
                 text,
@@ -437,7 +446,8 @@ private fun AssistantBubble(text: String, lang: String, markdown: Boolean, error
             modifier = Modifier.fillMaxWidth(0.92f),
             color = background,
             contentColor = foreground,
-            shape = MaterialTheme.shapes.large,
+            shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 6.dp, bottomEnd = 22.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             if (markdown) {
                 MarkdownMessage(text, foreground, lang, Modifier.padding(Space.s12))

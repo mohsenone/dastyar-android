@@ -20,6 +20,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material3.Button
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.ui.res.stringResource
+import app.dastyar.agent.connectors.R
+import app.dastyar.agent.ui.MenuNavigation
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -49,12 +52,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.dastyar.agent.ui.SectionCard
 import app.dastyar.agent.ui.t
-import java.security.MessageDigest
 import kotlinx.coroutines.launch
 
 @Composable
 fun ConnectorsScreen(
     onPermissions: () -> Unit,
+    onOpenMenu: () -> Unit,
     vm: ConnectorsViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -76,7 +79,19 @@ fun ConnectorsScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        DastyarTopBar(t(lang, "اتصال‌ها", "Connectors"))
+        DastyarTopBar(
+            stringResource(R.string.connector_title),
+            navigation = { MenuNavigation(onOpenMenu) },
+        )
+        if (state.loadError || state.unreadable) {
+            SectionCard(
+                title = stringResource(R.string.connector_screen_error_title),
+                body = stringResource(R.string.connector_screen_error_body),
+                footer = {
+                    Button(onClick = vm::retry) { Text(stringResource(R.string.connector_retry)) }
+                },
+            )
+        }
         Text(
             t(
                 lang,
@@ -87,7 +102,7 @@ fun ConnectorsScreen(
         )
         if (state.rows.isEmpty()) {
             Text(
-                t(lang, "در حال خواندن اتصال‌ها…", "Loading connectors…"),
+                stringResource(R.string.connector_loading),
                 style = MaterialTheme.typography.bodyMedium,
             )
         } else if (!anyConnected) {
@@ -98,24 +113,49 @@ fun ConnectorsScreen(
             )
         }
         OutlinedButton(onClick = onPermissions, modifier = Modifier.fillMaxWidth()) {
-            Text(t(lang, "اجازه‌ها، دسترس‌پذیری، اعلان", "Permissions, accessibility, notifications"))
+            Text(stringResource(R.string.connector_permissions))
         }
+        CatalogOrError(state, ConnectorIds.GOOGLE, "Google") {
         GoogleCard(state, vm, lang) { clientId, redirect, secret, extra ->
             scope.launch {
                 vm.prepareGoogle(clientId, redirect, secret, extra)?.let { googleLauncher.launch(it) }
             }
         }
+        }
+        CatalogOrError(state, ConnectorIds.GITHUB, "GitHub") {
         TokenCatalogCard(state, lang, vm, ConnectorIds.GITHUB, "GitHub", t(lang, "توکن شخصی کلاسیک یا fine-grained. ساختن issue و نظر تأیید می‌خواهد.", "A classic or fine-grained personal access token. Creating an issue or comment asks first."), "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens", "https://github.com/settings/tokens")
+        }
+        CatalogOrError(state, ConnectorIds.TELEGRAM, "Telegram Bot") {
         TokenCatalogCard(state, lang, vm, ConnectorIds.TELEGRAM, "Telegram Bot", t(lang, "این API ربات است، نه کنترل خاموش حساب شخصی. توکن را از @BotFather بگیرید. ارسال تأیید می‌خواهد.", "This is the bot API, not silent control of your personal account. Get the token from @BotFather. Sending asks first."), "https://core.telegram.org/bots/api", "https://t.me/BotFather")
+        }
+        CatalogOrError(state, ConnectorIds.NOTION, "Notion") {
         TokenCatalogCard(state, lang, vm, ConnectorIds.NOTION, "Notion", t(lang, "توکن یکپارچه‌سازی. صفحه را با همان integration به اشتراک بگذارید. نوشتن تأیید می‌خواهد.", "An integration token. Share the page with that integration. Writes ask first."), "https://developers.notion.com/docs/create-a-notion-integration", "https://www.notion.so/my-integrations")
-        WebhookCard(state, vm, lang)
-        SearchCard(state, vm, lang)
-        RssCard(state, vm, lang)
-        WeatherCard(state, vm, lang)
-        McpCard(state, vm, lang)
-        ShizukuCard(state, vm, lang, signingSha1(context.packageManager, context.packageName))
+        }
+        CatalogOrError(state, ConnectorIds.WEBHOOK, "Webhook") { WebhookCard(state, vm, lang) }
+        CatalogOrError(state, ConnectorIds.SEARCH, "Search") { SearchCard(state, vm, lang) }
+        CatalogOrError(state, ConnectorIds.RSS, "RSS") { RssCard(state, vm, lang) }
+        CatalogOrError(state, ConnectorIds.WEATHER, "Weather") { WeatherCard(state, vm, lang) }
+        CatalogOrError(state, ConnectorIds.MCP, "MCP") { McpCard(state, vm, lang) }
+        CatalogOrError(state, ConnectorIds.SHIZUKU, "Shizuku") {
+            ShizukuCard(state, vm, lang, signingSha1(context.packageManager, context.packageName))
+        }
     }
     DastyarSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(16.dp))
+    }
+}
+
+@Composable
+private fun CatalogOrError(
+    state: ConnectorsUi,
+    id: String,
+    title: String,
+    content: @Composable () -> Unit,
+) {
+    val row = connectorRow(state.rows, id)
+    if (row?.broken == true) {
+        SectionCard(title = title, body = stringResource(R.string.connector_card_error))
+    } else {
+        content()
     }
 }
 
@@ -457,7 +497,7 @@ private fun ShizukuCard(state: ConnectorsUi, vm: ConnectorsViewModel, lang: Stri
                     Text(t(lang, "روشن", "On"), modifier = Modifier.weight(1f))
                     Switch(checked = ConnectorIds.SHIZUKU in state.snap.enabled, onCheckedChange = { vm.setEnabled(ConnectorIds.SHIZUKU, it) })
                 }
-                Text(row.note.ifBlank { ShizukuBridge.status() }, style = MaterialTheme.typography.bodySmall)
+                Text(row.note.ifBlank { "—" }, style = MaterialTheme.typography.bodySmall)
                 Button(onClick = vm::requestShizuku) { Text(t(lang, "درخواست اجازه", "Request permission")) }
                 OutlinedButton(onClick = { vm.test(ConnectorIds.SHIZUKU) }) { Text(t(lang, "آزمایش", "Test")) }
                 TextButton(onClick = { open(context, "https://shizuku.rikka.app/introduction/") }) {
@@ -493,15 +533,17 @@ private fun open(context: android.content.Context, url: String) {
 }
 
 private fun signingSha1(pm: PackageManager, packageName: String): String = runCatching {
-    val signatures = if (Build.VERSION.SDK_INT >= 28) {
+    val bytes = if (Build.VERSION.SDK_INT >= 28) {
         val info = pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-        info.signingInfo?.apkContentsSigners?.map { it.toByteArray() }.orEmpty()
+        val signing = info.signingInfo
+        val current = runCatching { signing?.apkContentsSigners }.getOrNull().orEmpty()
+        val signers = if (current.isNotEmpty()) current else runCatching { signing?.signingCertificateHistory }.getOrNull().orEmpty()
+        signers.firstOrNull()?.toByteArray()
     } else {
         @Suppress("DEPRECATION")
         val info = pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
         @Suppress("DEPRECATION")
-        info.signatures?.map { it.toByteArray() }.orEmpty()
+        info.signatures?.firstOrNull()?.toByteArray()
     }
-    val digest = MessageDigest.getInstance("SHA-1").digest(signatures.firstOrNull() ?: return "—")
-    digest.joinToString(":") { "%02X".format(it) }
+    SigningSha1.format(bytes)
 }.getOrDefault("—")

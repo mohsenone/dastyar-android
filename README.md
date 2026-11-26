@@ -23,9 +23,13 @@ On Android 13 and later, a sideloaded APK cannot turn on Accessibility, notifica
 
 Mail can still open in the Gmail app or another email app. WhatsApp opens through `wa.me`. Sending still asks you first. Version 0.2.0 also has an optional Google sign-in under Connectors; see below. It is not a fake login, and some scopes need Google’s own verification.
 
+## 0.5.0
+
+`versionCode` 7. Chat is the home screen and fills the screen. The old bottom bar (Chat, Providers, Connectors, Routines, Settings) is a menu drawer opened from the menu icon. In Persian the drawer is right to left. Connectors keeps that name (اتصال‌ها). Opening Connectors no longer builds the Google sign-in service up front: AppAuth 0.11.1 can throw when a real phone’s browser has a null `PackageInfo.signatures` array, which a fresh emulator often does not. A broken connector card and a corrupt connector file stay on screen with a retry, and they do not wipe the vault or chats. Room is still version 3. There is no `v0.5.0` tag yet. This build was not run on a phone or an emulator.
+
 ## 0.4.0
 
-`versionCode` 6. Permissions are the focus. The Permissions screen is a live status list, a setup wizard (Messages, Calls, Contacts, Apps control, Notifications, Files, Location, Camera and microphone, System), and **Fix everything**, which walks only what is still missing. All-files access and Shizuku are optional and are not in that walk. A grant Android will not ask for again opens app settings. Background location is a second step. Persian restricted-settings steps stay right-to-left even when the app is in English. Settings has a Privacy screen. The bottom bar says **Connectors**. A home-screen widget and a quick-settings tile open the current chat. They do not start a new one. Share-in of text and images was already supported. The full permission table is in [CHANGELOG.md](CHANGELOG.md). This build was not run on a phone. There is no `v0.4.0` tag yet.
+`versionCode` 6. Permissions are the focus. The Permissions screen is a live status list, a setup wizard (Messages, Calls, Contacts, Apps control, Notifications, Files, Location, Camera and microphone, System), and **Fix everything**, which walks only what is still missing. All-files access and Shizuku are optional and are not in that walk. A grant Android will not ask for again opens app settings. Background location is a second step. Persian restricted-settings steps stay right-to-left even when the app is in English. Settings has a Privacy screen. The bottom bar says **Connectors**. A home-screen widget and a quick-settings tile open the current chat. They do not start a new one. Share-in of text and images was already supported. The full permission table is in [CHANGELOG.md](CHANGELOG.md). This build was not run on a phone. It was later tagged `v0.4.0`.
 
 ## Add a key
 
@@ -79,7 +83,7 @@ Conversations can be pinned, renamed, and searched. The chat bar opens the saved
 
 ## Connectors (0.2.0)
 
-Open **Connectors** in the bottom bar, or **Connectors** in Settings. A connector that is off adds no tools. **Connected** means a real sign-in or a successful test, not a placeholder. Secrets stay in the same Keystore vault as LLM keys. They are not Room columns and they are not written to the audit log. The Connectors screen blocks screenshots.
+Open **Connectors** from the menu, or **Connectors** in Settings. A connector that is off adds no tools. **Connected** means a real sign-in or a successful test, not a placeholder. Secrets stay in the same Keystore vault as LLM keys. They are not Room columns and they are not written to the audit log. The Connectors screen blocks screenshots.
 
 | Connector | What you paste | Official page |
 |---|---|---|

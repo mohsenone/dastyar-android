@@ -95,6 +95,15 @@ class ConnectorLogicTest {
     }
 
     @Test
+    fun signingSha1IsADashWhenTheCertificateIsMissing() {
+        assertEquals("—", SigningSha1.format(null))
+        assertEquals("—", SigningSha1.format(byteArrayOf()))
+        val formatted = SigningSha1.format("dastyar".toByteArray())
+        assertEquals(59, formatted.length)
+        assertTrue(formatted.all { it.isDigit() || it in 'A'..'F' || it == ':' })
+    }
+
+    @Test
     fun googleScopesStayLimitedUnlessTheUserOptsIn() {
         val base = GoogleScopes.request(false)
         assertTrue(GoogleScopes.GMAIL_SEND in base)

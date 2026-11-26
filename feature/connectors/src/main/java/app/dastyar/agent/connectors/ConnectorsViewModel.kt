@@ -19,6 +19,7 @@ data class ConnectorRow(
     val id: String,
     val status: LinkStatus,
     val note: String,
+    val broken: Boolean = false,
 )
 
 data class ConnectorsUi(
@@ -28,6 +29,8 @@ data class ConnectorsUi(
     val secrets: Set<String> = emptySet(),
     val message: String? = null,
     val busy: Boolean = false,
+    val loadError: Boolean = false,
+    val unreadable: Boolean = false,
 )
 
 @HiltViewModel
@@ -44,13 +47,18 @@ class ConnectorsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            settings.data.collect { snap ->
-                _state.update { it.copy(lang = AppLanguage.uiLang(snap.language, deviceLanguageTag())) }
+            runCatching {
+                settings.data.collect { snap ->
+                    _state.update { it.copy(lang = AppLanguage.uiLang(snap.language, deviceLanguageTag())) }
+                }
             }
         }
         viewModelScope.launch {
-            store.flow.collect {
-                refreshRows()
+            runCatching {
+                store.flow.collect { refreshRows() }
+            }.onFailure {
+                val rows = ConnectorIds.catalog.map { ConnectorRow(it, LinkStatus.ERROR, "", broken = true) }
+                _state.update { state -> state.copy(rows = rows, loadError = true) }
             }
         }
     }
@@ -59,15 +67,26 @@ class ConnectorsViewModel @Inject constructor(
         viewModelScope.launch {
             store.setEnabled(id, enabled)
             if (id == ConnectorIds.MCP) tools.reloadMcp()
-            if (id == ConnectorIds.SHIZUKU) store.setNote(id, ShizukuBridge.status())
+            if (id == ConnectorIds.SHIZUKU) {
+            store.setNote(id, runCatching { ShizukuBridge.status() }.getOrDefault("error"))
+        }
         }
     }
 
     fun saveSecret(id: String, value: String) {
         if (value.isBlank()) return
         viewModelScope.launch {
-            vault.put(secretId(id), value.trim())
-            _state.update { it.copy(message = if (it.lang.startsWith("fa")) "رمز در Keystore ذخیره شد." else "Secret saved in the Keystore.") }
+            val saved = runCatching { vault.put(secretId(id), value.trim()) }.isSuccess
+            _state.update {
+                it.copy(
+                    message = when {
+                        !saved && it.lang.startsWith("fa") -> "رمز ذخیره نشد."
+                        !saved -> "Could not store the secret."
+                        it.lang.startsWith("fa") -> "رمز در Keystore ذخیره شد."
+                        else -> "Secret saved in the Keystore."
+                    },
+                )
+            }
             refreshRows()
         }
     }
@@ -96,9 +115,19 @@ class ConnectorsViewModel @Inject constructor(
             _state.update { it.copy(message = problem ?: if (_state.value.lang.startsWith("fa")) "شناسهٔ کلاینت لازم است." else "A client id is required.") }
             return null
         }
+        if (!store.canWrite()) {
+            _state.update { it.copy(unreadable = true) }
+            return null
+        }
         store.setGoogle(clientId, target, extra)
-        if (secret.isNotBlank()) vault.put(VaultIds.GOOGLE_SECRET, secret.trim())
-        return auth.intent(clientId.trim(), target, extra)
+        if (secret.isNotBlank()) runCatching { vault.put(VaultIds.GOOGLE_SECRET, secret.trim()) }
+        val intent = auth.intent(clientId.trim(), target, extra)
+        if (intent == null) {
+            _state.update {
+                it.copy(message = if (it.lang.startsWith("fa")) "ورود گوگل شروع نشد. یک مرورگر نصب باشد." else "Google sign-in could not start. Check that a browser is installed.")
+            }
+        }
+        return intent
     }
 
     fun onGoogleActivity(data: Intent?) {
@@ -157,46 +186,74 @@ class ConnectorsViewModel @Inject constructor(
     }
 
     fun requestShizuku() {
-        ShizukuBridge.requestPermission()
-        viewModelScope.launch { store.setNote(ConnectorIds.SHIZUKU, ShizukuBridge.status()) }
+        runCatching { ShizukuBridge.requestPermission() }
+        viewModelScope.launch {
+            store.setNote(ConnectorIds.SHIZUKU, runCatching { ShizukuBridge.status() }.getOrDefault("error"))
+        }
     }
 
     fun clearMessage() = _state.update { it.copy(message = null) }
 
+    fun retry() {
+        viewModelScope.launch {
+            _state.update { it.copy(loadError = false) }
+            refreshRows()
+        }
+    }
+
     private suspend fun refreshRows() {
-        val snap = store.current()
-        val secrets = buildSet {
-            if (!vault.get(VaultIds.GOOGLE_TOKENS).isNullOrBlank()) add(ConnectorIds.GOOGLE)
-            if (!vault.get(VaultIds.GITHUB).isNullOrBlank()) add(ConnectorIds.GITHUB)
-            if (!vault.get(VaultIds.TELEGRAM).isNullOrBlank()) add(ConnectorIds.TELEGRAM)
-            if (!vault.get(VaultIds.NOTION).isNullOrBlank()) add(ConnectorIds.NOTION)
-            if (!vault.get(VaultIds.TAVILY).isNullOrBlank() || !vault.get(VaultIds.BRAVE).isNullOrBlank() || snap.searxngBase.isNotBlank()) add(ConnectorIds.SEARCH)
-            if (!vault.get(VaultIds.OPENWEATHER).isNullOrBlank()) add(ConnectorIds.WEATHER)
-            if (snap.mcp.isNotEmpty()) add(ConnectorIds.MCP)
+        try {
+            val snap = store.current()
+            val unreadable = !store.canWrite()
+            var vaultFailed = false
+            suspend fun has(id: String): Boolean = try {
+                !vault.get(id).isNullOrBlank()
+            } catch (_: Throwable) {
+                vaultFailed = true
+                false
+            }
+            val secrets = buildSet {
+                if (has(VaultIds.GOOGLE_TOKENS)) add(ConnectorIds.GOOGLE)
+                if (has(VaultIds.GITHUB)) add(ConnectorIds.GITHUB)
+                if (has(VaultIds.TELEGRAM)) add(ConnectorIds.TELEGRAM)
+                if (has(VaultIds.NOTION)) add(ConnectorIds.NOTION)
+                if (has(VaultIds.TAVILY) || has(VaultIds.BRAVE) || snap.searxngBase.isNotBlank()) add(ConnectorIds.SEARCH)
+                if (has(VaultIds.OPENWEATHER)) add(ConnectorIds.WEATHER)
+                if (snap.mcp.isNotEmpty()) add(ConnectorIds.MCP)
+            }
+            val shizukuNote = runCatching { ShizukuBridge.status() }.getOrDefault("error")
+            val rows = ConnectorIds.catalog.map { id ->
+                runCatching {
+                    val note = if (id == ConnectorIds.SHIZUKU) shizukuNote else snap.notes[id].orEmpty()
+                    ConnectorRow(
+                        id = id,
+                        status = ConnectorStatus.of(
+                            id = id,
+                            enabled = id in snap.enabled,
+                            hasCredential = id in secrets,
+                            note = note,
+                            weatherKind = snap.weatherKind,
+                            webhookUrl = snap.webhookUrl,
+                            rssCount = snap.rss.size,
+                            mcpReady = id == ConnectorIds.MCP && note == "connected",
+                        ),
+                        note = note,
+                    )
+                }.getOrElse { ConnectorRow(id, LinkStatus.ERROR, "", broken = true) }
+            }
+            _state.update {
+                it.copy(
+                    snap = snap,
+                    secrets = secrets,
+                    rows = rows,
+                    loadError = false,
+                    unreadable = unreadable || vaultFailed,
+                )
+            }
+        } catch (_: Throwable) {
+            val rows = ConnectorIds.catalog.map { ConnectorRow(it, LinkStatus.ERROR, "", broken = true) }
+            _state.update { it.copy(rows = rows, loadError = true) }
         }
-        val shizukuNote = if (ConnectorIds.SHIZUKU in snap.enabled) ShizukuBridge.status() else snap.notes[ConnectorIds.SHIZUKU].orEmpty()
-        val rows = listOf(
-            ConnectorIds.GOOGLE, ConnectorIds.GITHUB, ConnectorIds.TELEGRAM, ConnectorIds.NOTION,
-            ConnectorIds.WEBHOOK, ConnectorIds.SEARCH, ConnectorIds.RSS, ConnectorIds.WEATHER,
-            ConnectorIds.MCP, ConnectorIds.SHIZUKU,
-        ).map { id ->
-            val note = if (id == ConnectorIds.SHIZUKU) shizukuNote else snap.notes[id].orEmpty()
-            ConnectorRow(
-                id = id,
-                status = ConnectorStatus.of(
-                    id = id,
-                    enabled = id in snap.enabled,
-                    hasCredential = id in secrets,
-                    note = note,
-                    weatherKind = snap.weatherKind,
-                    webhookUrl = snap.webhookUrl,
-                    rssCount = snap.rss.size,
-                    mcpReady = note == "connected" || (id == ConnectorIds.MCP && note == "connected"),
-                ),
-                note = note,
-            )
-        }
-        _state.update { it.copy(snap = snap, secrets = secrets, rows = rows) }
     }
 
     private fun secretId(id: String) = when (id) {

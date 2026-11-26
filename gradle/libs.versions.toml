@@ -22,6 +22,7 @@ json = "20240303"
 appauth = "0.11.1"
 shizuku = "13.1.5"
 splash = "1.0.1"
+sqlite = "3.47.2.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -58,6 +59,7 @@ appauth = { module = "net.openid:appauth", version.ref = "appauth" }
 shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
 shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }
 androidx-splash = { module = "androidx.core:core-splashscreen", version.ref = "splash" }
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

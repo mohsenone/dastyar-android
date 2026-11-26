@@ -43,11 +43,7 @@ fun PrivacyScreen(lang: String, safGranted: Boolean, onBack: () -> Unit) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
-        DastyarTopBar(stringResource(R.string.privacy_title), navigation = {
-            androidx.compose.material3.TextButton(onClick = onBack) {
-                Text(stringResource(R.string.perm_back))
-            }
-        })
+        DastyarTopBar(stringResource(R.string.privacy_title), navigation = { app.dastyar.agent.ui.BackNavigation(onBack) })
         Text(stringResource(R.string.privacy_intro), style = MaterialTheme.typography.bodyMedium)
         SectionCard(
             title = stringResource(R.string.privacy_confirm_title),

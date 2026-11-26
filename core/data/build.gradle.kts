@@ -32,6 +32,10 @@ kotlin {
     }
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.coroutines.android)
@@ -43,4 +47,5 @@ dependencies {
     ksp(libs.room.compiler)
     implementation(libs.datastore)
     testImplementation(libs.junit)
+    testImplementation(libs.sqlite.jdbc)
 }

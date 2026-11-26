@@ -284,7 +284,7 @@ abstract class ModelCacheDao {
         ModelCacheEntity::class,
     ],
     version = 3,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class DastyarDatabase : RoomDatabase() {
     abstract fun conversations(): ConversationDao

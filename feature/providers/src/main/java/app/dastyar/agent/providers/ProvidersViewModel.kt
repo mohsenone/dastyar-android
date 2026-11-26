@@ -101,7 +101,9 @@ class ProvidersViewModel @Inject constructor(
                 }
                 repo.profile(entity.id)
             }
-            val card = Catalog.cards.firstOrNull { it.kind == entity.kind } ?: Catalog.cards.first { it.id == "custom" }
+            val card = Catalog.cards.firstOrNull { it.kind == entity.kind }
+                ?: Catalog.cards.firstOrNull { it.id == "custom" }
+                ?: return@launch
             val hint = profile?.apiKey?.let { mask(it) }.orEmpty()
             _state.update {
                 it.copy(

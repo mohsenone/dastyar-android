@@ -2,6 +2,7 @@ package app.dastyar.agent.connectors
 
 import java.net.URI
 import java.net.URLEncoder
+import java.security.MessageDigest
 
 object ConnectorIds {
     const val GOOGLE = "google"
@@ -22,6 +23,16 @@ object ConnectorIds {
 
 /** Null when the snapshot has not loaded or this catalog id is absent. Never throws. */
 fun connectorRow(rows: List<ConnectorRow>, id: String): ConnectorRow? = rows.firstOrNull { it.id == id }
+
+/** SHA-1 of one certificate. A missing certificate is a dash, never a throw. */
+object SigningSha1 {
+    fun format(bytes: ByteArray?): String {
+        if (bytes == null || bytes.isEmpty()) return "—"
+        return runCatching {
+            MessageDigest.getInstance("SHA-1").digest(bytes).joinToString(":") { "%02X".format(it) }
+        }.getOrDefault("—")
+    }
+}
 
 enum class LinkStatus { OFF, NEEDS_AUTH, CONNECTED, ERROR }
 

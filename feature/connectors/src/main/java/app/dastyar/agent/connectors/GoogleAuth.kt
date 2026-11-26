@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import app.dastyar.agent.security.SecretVault
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -20,12 +21,36 @@ import org.json.JSONObject
 
 @Singleton
 class GoogleAuth @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     private val vault: SecretVault,
 ) {
-    private val service = AuthorizationService(context)
+    private val serviceRef = AtomicReference<AuthorizationService?>(null)
 
-    fun intent(clientId: String, redirect: String, extraScopes: Boolean): Intent {
+    /**
+     * AppAuth 0.11.1 builds [AuthorizationService] by listing browsers and hashing
+     * `PackageInfo.signatures` from the deprecated GET_SIGNATURES flag. On API 28+
+     * that array is often null, and the library only catches NameNotFoundException,
+     * so the constructor throws. A fresh emulator image still fills the old field.
+     * Create the service on demand and keep a failure off the screen that only lists connectors.
+     */
+    private fun service(): AuthorizationService? {
+        serviceRef.get()?.let { return it }
+        val created = runCatching { AuthorizationService(context) }.getOrNull() ?: return null
+        serviceRef.compareAndSet(null, created)
+        return serviceRef.get()
+    }
+
+    fun intent(clientId: String, redirect: String, extraScopes: Boolean): Intent? {
+        val service = service() ?: return null
+        return runCatching { authorizationIntent(service, clientId, redirect, extraScopes) }.getOrNull()
+    }
+
+    private fun authorizationIntent(
+        service: AuthorizationService,
+        clientId: String,
+        redirect: String,
+        extraScopes: Boolean,
+    ): Intent {
         val config = AuthorizationServiceConfiguration(
             Uri.parse("https://accounts.google.com/o/oauth2/v2/auth"),
             Uri.parse("https://oauth2.googleapis.com/token"),
@@ -46,7 +71,8 @@ class GoogleAuth @Inject constructor(
         if (response == null) {
             return "error: ${failure?.errorDescription ?: failure?.error ?: "Google sign-in was cancelled."}"
         }
-        val secret = vault.get(VaultIds.GOOGLE_SECRET)?.trim().orEmpty()
+        val service = service() ?: return "error: Google sign-in could not start. Check that a browser is installed."
+        val secret = runCatching { vault.get(VaultIds.GOOGLE_SECRET) }.getOrNull()?.trim().orEmpty()
         val token = suspendCancellableCoroutine { cont ->
             val callback = AuthorizationService.TokenResponseCallback { tokenResponse, _ ->
                 if (cont.isActive) cont.resume(tokenResponse)
@@ -61,7 +87,8 @@ class GoogleAuth @Inject constructor(
             .put("access_token", access)
             .put("refresh_token", token.refreshToken.orEmpty())
             .put("expires_at", token.accessTokenExpirationTime ?: (System.currentTimeMillis() + 3_500_000))
-        vault.put(VaultIds.GOOGLE_TOKENS, json.toString())
+        val saved = runCatching { vault.put(VaultIds.GOOGLE_TOKENS, json.toString()) }.isSuccess
+        if (!saved) return "error: Could not store the Google token."
         return "connected"
     }
 }

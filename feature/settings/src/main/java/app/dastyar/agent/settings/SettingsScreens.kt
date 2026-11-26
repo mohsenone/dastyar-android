@@ -33,7 +33,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.res.stringResource
 import app.dastyar.agent.data.AppLanguage
 import app.dastyar.agent.data.Appearance
+import app.dastyar.agent.ui.BackNavigation
 import app.dastyar.agent.ui.DastyarTopBar
+import app.dastyar.agent.ui.MenuNavigation
 import app.dastyar.agent.ui.EmptyState
 import app.dastyar.agent.ui.PrimaryButton
 import app.dastyar.agent.ui.SecondaryButton
@@ -139,6 +141,7 @@ fun SettingsScreen(
     onPrivacy: () -> Unit,
     onPickFolder: () -> Unit,
     onConnectors: () -> Unit,
+    onOpenMenu: () -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
@@ -146,7 +149,7 @@ fun SettingsScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        DastyarTopBar(t(lang, "تنظیمات", "Settings"))
+        DastyarTopBar(stringResource(R.string.settings_title), navigation = { MenuNavigation(onOpenMenu) })
         SectionHeader(stringResource(R.string.onboarding_language))
         LanguageChips(state.languagePref) { code ->
             onLanguage(code)
@@ -291,7 +294,7 @@ private fun categoryLabel(lang: String, category: String): String = when (catego
 }
 
 @Composable
-fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit) {
+fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit, onOpenMenu: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
     var title by remember { mutableStateOf("") }
@@ -306,7 +309,7 @@ fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        DastyarTopBar(t(lang, "روال‌ها", "Routines"))
+        DastyarTopBar(stringResource(R.string.routines_title), navigation = { MenuNavigation(onOpenMenu) })
         if (state.routines.isEmpty()) {
             EmptyState(
                 icon = Icons.Outlined.Schedule,
@@ -377,7 +380,7 @@ fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit) {
 }
 
 @Composable
-fun AuditScreen(vm: SettingsViewModel, onExport: suspend (String) -> Unit) {
+fun AuditScreen(vm: SettingsViewModel, onExport: suspend (String) -> Unit, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
     val scope = rememberCoroutineScope()
@@ -395,7 +398,7 @@ fun AuditScreen(vm: SettingsViewModel, onExport: suspend (String) -> Unit) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        DastyarTopBar(t(lang, "گزارش ابزارها", "Tool audit"))
+        DastyarTopBar(stringResource(R.string.audit_title), navigation = { BackNavigation(onBack) })
         Text(
             t(lang, "زمان، ابزار، نتیجه و آرگومان‌های سانسورشده. رمز در گزارش نوشته نمی‌شود.", "Time, tool, result, and redacted arguments. Tokens are not written here."),
             style = MaterialTheme.typography.bodySmall,
@@ -459,7 +462,7 @@ private fun triggerLabel(lang: String, kind: String): String = when (kind) {
 }
 
 @Composable
-fun MemoriesScreen(vm: SettingsViewModel) {
+fun MemoriesScreen(vm: SettingsViewModel, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
     var fact by remember { mutableStateOf("") }
@@ -467,7 +470,7 @@ fun MemoriesScreen(vm: SettingsViewModel) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        DastyarTopBar(t(lang, "یادداشت‌ها", "Saved facts"))
+        DastyarTopBar(stringResource(R.string.memories_title), navigation = { BackNavigation(onBack) })
         if (state.memories.isEmpty()) {
             EmptyState(
                 icon = Icons.AutoMirrored.Outlined.Notes,
@@ -494,7 +497,7 @@ fun DisclosureScreen(vm: SettingsViewModel, onOpenSettings: () -> Unit, onBack: 
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        DastyarTopBar(t(lang, "افشای دسترس‌پذیری", "Accessibility disclosure"))
+        DastyarTopBar(t(lang, "افشای دسترس‌پذیری", "Accessibility disclosure"), navigation = { BackNavigation(onBack) })
         Text(t(lang, "خدمت دسترس‌پذیری دستیار می‌تواند متن و ساختار صفحهٔ برنامه‌های دیگر را بخواند و ضربه، پیمایش و نوشتن انجام دهد. این یعنی کنترل برنامه‌های دیگر، از جمله دیدن نوشته‌ای که روی صفحه است.", "Dastyar's accessibility service can read the text and structure of other apps and can tap, scroll, and type. That means it can control other apps, including content visible on screen."))
         Text(t(lang, "هر حرکتی که وضعیت برنامهٔ دیگر را عوض کند خطرناک است و قبل از اجرا تأیید می‌خواهد. اگر مدل چند گام را با هم طرح کند، یک تأیید با فهرست گام‌ها نشان داده می‌شود.", "Every gesture that changes another app is dangerous and needs confirmation. If the model planned several steps, one confirmation lists them."))
         Text(t(lang, "از اعلان «توقف ابزارها» می‌توانید خودکارسازی را فوراً متوقف کنید. برای خاموش کردن همیشگی: تنظیمات سیستم، دسترس‌پذیری، دستیار، خاموش.", "Pause automation immediately from the “Pause tools” notification. To turn it off for good: system Settings, Accessibility, Dastyar, off."))

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="connector_title">Connectors</string>
+    <string name="connector_loading">Loading connectors…</string>
+    <string name="connector_permissions">Permissions, accessibility, notifications</string>
+    <string name="connector_screen_error_title">Couldn’t load connectors</string>
+    <string name="connector_screen_error_body">Saved settings were left untouched. The rest of the list can still open. Try again, or check one connector at a time.</string>
+    <string name="connector_card_error">Couldn’t load this connector</string>
+    <string name="connector_retry">Try again</string>
+</resources>
