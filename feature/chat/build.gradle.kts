@@ -51,6 +51,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(project(":core:ui"))
     implementation(project(":core:data"))
+    implementation(project(":core:network"))
     implementation(project(":feature:agent"))
     implementation(project(":feature:voice"))
     implementation(libs.hilt.navigation.compose)

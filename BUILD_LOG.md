@@ -64,3 +64,13 @@
 - APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.2.0/app-release.apk (2,886,685 bytes, state uploaded). The same bytes are also at https://github.com/mohsenone/dastyar-android/releases/download/v0.2.0/dastyar-0.2.0.apk
 - `aapt dump badging` reports `versionCode` 3 and `versionName` 0.2.0, package `app.dastyar.agent`. `apksigner verify` succeeded with APK Signature Scheme v2 and certificate CN=Dastyar.
 - Nothing was sent to Telegram from this machine. The tag workflow (run 45787227870) finished successfully. Its Telegram step logged `TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is absent. Skipping Telegram upload.` CI replaced the release body with the generic workflow text; the bilingual connector notes were written back with `gh release edit`. Both APK assets stayed at 2,886,685 bytes.
+
+## 2026-11-26 — v0.2.1
+
+- `versionCode` 4, `versionName` 0.2.1. Chat bar opens a provider and model sheet. Free models sort first. Live fetch covers OpenAI-compatible `/models` (OpenAI, Groq, Cerebras, NVIDIA NIM, xAI, DeepSeek, Mistral, Custom), OpenRouter pricing, Gemini `models.list`, Cloudflare `ai/models/search`, and Anthropic `GET /v1/models`. Results are cached in Room `model_cache`. A failed refresh shows the cache, then a short built-in list (catalog defaults only: Gemini Flash, OpenRouter `openrouter/free`, the three documented Groq ids, the Cloudflare Llama id, `deepseek-chat`). NVIDIA and Cerebras have no catalog default id, so their offline list is the saved model id when one exists.
+- Free badge rules: OpenRouter `:free`, `openrouter/free`, or both prices zero. Gemini Flash/Lite only; names containing pro, ultra, or flagship stay unpaid. Groq only the three catalog free-plan ids unless the payload is zero or `:free`. NVIDIA models from `integrate.api.nvidia.com` count as the rate-limited prototyping catalog; a custom base does not. Cloudflare `@cf/` ids count as the free Neuron allocation; other authors do not. Cerebras is trial, not free, unless the payload prices both sides at zero. OpenAI, Anthropic, xAI, DeepSeek, Mistral, and custom stay paid/unknown unless the payload is zero or the id ends with `:free`. GitHub Models is not fetched.
+- Tool-calling warning only when the payload says tools are unsupported. Unknown capability stays unlabeled. This server has no emulator. Nothing was sent to Telegram from this machine.
+
+### Publish
+
+- Pending: unit tests, signed `assembleRelease`, `apksigner verify`, commit, annotated tag `v0.2.1`, GitHub Release. URLs will be appended after `gh release view`.

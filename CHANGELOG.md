@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.1 — 2026-11-26
+
+English
+
+- The chat bar shows the current provider and model. Tap it to open a list of saved providers and that provider’s models. Free models are listed first, with a free badge only when a pricing rule or a documented free tier says so.
+- Refresh loads the live catalog (OpenAI-compatible `/models`, OpenRouter, Gemini, Cloudflare Workers AI, and Anthropic’s model list). The last list is kept on the phone. If the network fails, the saved list or a short built-in list is shown. Cerebras stays in the non-free section unless the payload is priced at zero. GitHub Models stays discontinued and is not fetched.
+- Search filters the list. Context length, vision, and tool calling are shown when the payload includes them. Choosing a model applies to this chat immediately. Save as app default does not rewrite chats that already stored their own model. A model known to lack tool calling shows a warning.
+
+فارسی
+
+- نوار گفتگو نام ارائه‌دهنده و مدل را نشان می‌دهد. با لمس آن، ارائه‌دهنده‌های ذخیره‌شده و فهرست مدل همان ارائه‌دهنده باز می‌شود. مدل‌های رایگان اول می‌آیند و نشان رایگان فقط وقتی است که قاعدهٔ قیمت یا سهمیهٔ رایگانِ مستند بگوید.
+- تازه‌سازی، فهرست زنده را می‌گیرد (سازگار با OpenAI، OpenRouter، Gemini، Cloudflare Workers AI، و فهرست مدل Anthropic). آخرین فهرست روی گوشی می‌ماند. اگر شبکه نباشد، فهرست ذخیره‌شده یا یک فهرست کوتاهِ ساخته‌شده نشان داده می‌شود. Cerebras در بخش غیررایگان می‌ماند مگر اینکه پاسخ قیمت صفر بدهد. GitHub Models متوقف است و دریافت نمی‌شود.
+- جستجو فهرست را صافی می‌کند. طول بافت، بینایی و فراخوانی ابزار وقتی در پاسخ باشند نشان داده می‌شوند. انتخاب مدل همان لحظه برای این گفتگو ذخیره می‌شود. «پیش‌فرض برنامه» گفتگوهایی را که مدل جدا دارند بازنویسی نمی‌کند. اگر مدل ابزار را پشتیبانی نکند، هشدار می‌آید.
+
 ## 0.2.0 — 2026-11-26
 
 English

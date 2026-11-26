@@ -13,6 +13,7 @@ object ProviderKinds {
     const val DEEPSEEK = "DEEPSEEK"
     const val MISTRAL = "MISTRAL"
     const val CUSTOM = "CUSTOM"
+    const val GITHUB_MODELS = "GITHUB_MODELS"
 
     fun supportsVision(kind: String): Boolean = kind in setOf(
         GEMINI, OPENAI, ANTHROPIC, OPENROUTER, CUSTOM, XAI, NVIDIA,

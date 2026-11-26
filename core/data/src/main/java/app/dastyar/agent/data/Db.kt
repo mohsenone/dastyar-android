@@ -9,6 +9,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "conversations")
@@ -232,6 +233,44 @@ interface ProviderDao {
 
     @Query("DELETE FROM providers WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("UPDATE providers SET model = :model WHERE id = :id")
+    suspend fun updateModel(id: String, model: String)
+}
+
+@Entity(tableName = "model_cache", primaryKeys = ["providerId", "modelId"])
+data class ModelCacheEntity(
+    val providerId: String,
+    val modelId: String,
+    val displayName: String,
+    val free: Boolean,
+    val promptPrice: String?,
+    val completionPrice: String?,
+    val contextLength: Int?,
+    /** null unknown, 0 no, 1 yes. */
+    val vision: Int?,
+    /** null unknown, 0 no, 1 yes. */
+    val tools: Int?,
+    val note: String?,
+    val fetchedAt: Long,
+)
+
+@Dao
+abstract class ModelCacheDao {
+    @Query("SELECT * FROM model_cache WHERE providerId = :providerId")
+    abstract suspend fun list(providerId: String): List<ModelCacheEntity>
+
+    @Query("DELETE FROM model_cache WHERE providerId = :providerId")
+    abstract suspend fun clear(providerId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertAll(rows: List<ModelCacheEntity>)
+
+    @Transaction
+    open suspend fun replace(providerId: String, rows: List<ModelCacheEntity>) {
+        clear(providerId)
+        if (rows.isNotEmpty()) upsertAll(rows)
+    }
 }
 
 @Database(
@@ -242,8 +281,9 @@ interface ProviderDao {
         MemoryEntity::class,
         RoutineEntity::class,
         ProviderEntity::class,
+        ModelCacheEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class DastyarDatabase : RoomDatabase() {
@@ -253,4 +293,5 @@ abstract class DastyarDatabase : RoomDatabase() {
     abstract fun memories(): MemoryDao
     abstract fun routines(): RoutineDao
     abstract fun providers(): ProviderDao
+    abstract fun modelCache(): ModelCacheDao
 }

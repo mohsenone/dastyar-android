@@ -67,7 +67,7 @@ The audit log in Settings can be filtered, exported, and deleted. It stores a sh
 
 Speech recognition and text-to-speech use the engines installed on the phone, for Persian and English when those voices exist. Stop speech from the chat bar. If Persian recognition is missing, the error says so and English is the fallback for speech output.
 
-Conversations can be pinned, renamed, and searched. Each chat can use its own provider and model id without changing the global default. Saved facts are a list the model can read and write. This version does not bundle an embedding model or Gemini Nano / a GGUF file. Settings explains that, and you can still save facts by hand.
+Conversations can be pinned, renamed, and searched. The chat bar opens the saved providers and that provider’s model list. Free models are first. Refresh asks the provider’s live catalog and keeps the last list if the network fails. Anthropic uses its models endpoint when the key can call it, and an offline list when it cannot. GitHub Models stays discontinued and is not fetched. Choosing a model applies to this chat. Save as app default does not rewrite chats that already stored their own model. Saved facts are a list the model can read and write. This version does not bundle an embedding model or Gemini Nano / a GGUF file. Settings explains that, and you can still save facts by hand.
 
 ## Connectors (0.2.0)
 

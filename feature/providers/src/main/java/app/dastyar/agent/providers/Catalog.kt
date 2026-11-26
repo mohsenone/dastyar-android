@@ -214,7 +214,7 @@ object Catalog {
         ),
         ProviderCard(
             id = "github-models",
-            kind = "GITHUB_MODELS",
+            kind = ProviderKinds.GITHUB_MODELS,
             name = "GitHub Models",
             summaryFa = "بازنشسته شده در ۳۰ ژوئیهٔ ۲۰۲۶. جریان ثبت‌نام زنده ندارد.",
             summaryEn = "Retired on 30 July 2026. There is no live signup flow.",

@@ -206,6 +206,13 @@ class ProviderRepository @Inject constructor(
         db.providers().markDefault(id)
     }
 
+    /** Updates the global provider and its model. Does not rewrite other chats. */
+    suspend fun setDefaultModel(id: String, model: String) {
+        db.providers().updateModel(id, model.trim())
+        db.providers().clearDefault()
+        db.providers().markDefault(id)
+    }
+
     suspend fun delete(id: String) {
         db.providers().delete(id)
         vault.delete(secretId(id))
@@ -264,4 +271,13 @@ class ProviderRepository @Inject constructor(
     }
 
     private fun secretId(id: String) = "provider:$id"
+}
+
+@Singleton
+class ModelCacheRepository @Inject constructor(
+    private val db: DastyarDatabase,
+) {
+    suspend fun list(providerId: String): List<ModelCacheEntity> = db.modelCache().list(providerId)
+
+    suspend fun replace(providerId: String, rows: List<ModelCacheEntity>) = db.modelCache().replace(providerId, rows)
 }
