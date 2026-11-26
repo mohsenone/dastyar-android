@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.4.0 — 2026-11-26
+
+English
+
+- Permission setup is a status list, a capability wizard, and Fix everything. Fix everything walks only missing items and skips all-files access and Shizuku. Status refreshes when the activity resumes. A denial that Android will not ask again opens app settings instead of a dead dialog. Background location is requested only after fine or coarse location. Android 13+ restricted settings stay a manual App info → ⋮ step. Persian guide text is right-to-left even when the app language is English. The other language is shown in its own direction.
+- Privacy screen: what each capability is for, that chats and keys stay on the phone except when you send them to the provider you chose or turn on a connector, how to revoke, and the confirmation floor (messages, email, calls, deletes, and payments still ask, even in Auto).
+- Least privilege: removed `READ_PHONE_STATE`, `BLUETOOTH_CONNECT`, and `MODIFY_AUDIO_SETTINGS`. Did not add a default SMS role, `USE_EXACT_ALARM`, `BLUETOOTH_SCAN`, or `NEARBY_WIFI_DEVICES`. Added media reads (`READ_MEDIA_IMAGES`, `VIDEO`, `AUDIO`, and partial visual access on API 34+) for `list_recent_media`. `READ_EXTERNAL_STORAGE` stays `maxSdkVersion` 32. All-files access stays optional and is not nagged. Shizuku is detected and is not a substitute for the grants above.
+- Tools that need access name the missing permission in English and Persian and point at Fix. They do not return an empty success.
+- Providers no longer marks the whole catalog with `FLAG_SECURE`. Only the key sheet does, and not on emulator or software-renderer fingerprints, where that flag has drawn a black window while the accessibility tree still listed the catalog. This server could not reproduce the black frame.
+- Bottom navigation says Connectors (اتصال‌ها). Wizard, privacy, and navigation chrome use string resources. Diagnostic titles stay in Kotlin so unit tests and `permissions_diagnostic` keep their text. Older screens still use `t()`.
+- The agent retries a transient network, rate-limit, or 5xx failure up to three attempts when nothing has streamed, with backoff. Cancel clears the typing indicator and says Stopped. Chat can attach a photo from the system picker and warns when the selected model has no vision. A home-screen widget and a quick-settings tile open the current chat. Share-in for text and images was already present.
+- No tag and no GitHub Release in this pass. This build was not installed on a phone or an emulator.
+
+فارسی
+
+- راه‌اندازی اجازه‌ها فهرست وضعیت، راهنمای گروه‌ها، و «رفع همه» است. رفع همه فقط موردهای داده‌نشده را می‌رود و دسترسی به همهٔ فایل‌ها و شیزوکو را رد می‌کند. وضعیت با برگشتن به برنامه تازه می‌شود. اگر اندروید دیگر نپرسد، به‌جای گفتگوی مرده، اطلاعات برنامه باز می‌شود. موقعیت پس‌زمینه فقط بعد از موقعیت دقیق یا تقریبی خواسته می‌شود. تنظیمات محدود اندروید ۱۳ به بعد همان مسیر دستی اطلاعات برنامه → ⋮ است. متن فارسی راهنما حتی وقتی زبان برنامه انگلیسی است راست‌به‌چپ است. زبان دیگر در جهت خودش می‌آید.
+- صفحهٔ حریم خصوصی: هر قابلیت برای چیست، گفتگو و کلید روی گوشی می‌ماند مگر وقتی به ارائه‌دهندهٔ انتخابی بفرستید یا اتصالی را روشن کنید، چطور پس بگیرید، و کف تأیید (پیام، ایمیل، تماس، حذف و پرداخت حتی در حالت خودکار هم می‌پرسند).
+- کمترین اجازه: `READ_PHONE_STATE` و `BLUETOOTH_CONNECT` و `MODIFY_AUDIO_SETTINGS` حذف شدند. نقش پیامک پیش‌فرض، `USE_EXACT_ALARM`، `BLUETOOTH_SCAN` و `NEARBY_WIFI_DEVICES` اضافه نشدند. خواندن رسانه (`READ_MEDIA_IMAGES` و `VIDEO` و `AUDIO` و دسترسی جزئی عکس در API ۳۴) برای `list_recent_media` اضافه شد. `READ_EXTERNAL_STORAGE` همچنان `maxSdkVersion` ۳۲ است. دسترسی به همهٔ فایل‌ها اختیاری است و در رفع همه نیست. شیزوکو فقط شناسایی می‌شود و جای اجازه‌های بالا نیست.
+- ابزاری که اجازه ندارد، نام اجازه را به فارسی و انگلیسی می‌گوید و به رفع اشاره می‌کند. موفقیتِ خالی برنمی‌گرداند.
+- فهرست ارائه‌دهندگان دیگر با `FLAG_SECURE` قفل نمی‌شود. فقط برگهٔ کلید قفل است، و آن هم نه روی اثرانگشت شبیه‌ساز یا رندر نرم‌افزاری، جایی که این پرچم پنجره را سیاه کرده در حالی که درخت دسترس‌پذیری هنوز فهرست را نشان می‌داده. این سرور نتوانست قاب سیاه را بازتولید کند.
+- برچسب نوار پایین Connectors (اتصال‌ها) است. متن راهنما، حریم خصوصی و ناوبری در منابع رشته است. عنوان تشخیص اجازه در کاتلین مانده تا آزمون و `permissions_diagnostic` متنشان را از دست ندهند. صفحه‌های قدیمی هنوز از `t()` استفاده می‌کنند.
+- عامل خطای گذرای شبکه، محدودیت نرخ، یا ۵xx را تا سه بار، وقتی هنوز چیزی نرسیده، با فاصلهٔ بیشتر دوباره می‌فرستد. لغو، نشان تایپ را برمی‌دارد و «متوقف شد» می‌گوید. گفتگو می‌تواند از انتخابگر سیستم عکس پیوست کند و اگر مدل بینایی نداشته باشد هشدار می‌دهد. ویجت صفحهٔ خانه و کاشی تنظیمات سریع گفتگوی فعلی را باز می‌کنند. اشتراک‌گذاری متن و تصویر از قبل بود.
+- در این مرحله برچسب و انتشار گیت‌هاب ساخته نشده است. این ساخت روی گوشی یا شبیه‌ساز نصب نشده است.
+
+### Permission audit
+
+| Access | Why | How requested | Deep link | Tools gated |
+|---|---|---|---|---|
+| `POST_NOTIFICATIONS` (API 33+) | Show background work | Runtime dialog after onboarding or from the wizard. Don’t-ask-again opens app info. Below 33 it is not a grant. | `ACTION_APPLICATION_DETAILS_SETTINGS` | Foreground routine notification |
+| SMS group: `READ_SMS`, `SEND_SMS`, `RECEIVE_SMS`, `RECEIVE_MMS`, `RECEIVE_WAP_PUSH` | Read and send SMS. Not the default SMS role. | Runtime dialog. Android 13+ may also need restricted settings. | App info, then ⋮ Allow restricted settings | `read_sms`, `send_sms`, SMS routine trigger |
+| `READ_CONTACTS`, `WRITE_CONTACTS` | Search and save a contact | Runtime dialog | App info if the dialog will not show again | `search_contacts`, `write_contact` |
+| `READ_CALL_LOG` | Read the call log. Nothing writes it. | Runtime dialog plus restricted settings on Android 13+ | App info → ⋮ | call-log read |
+| `CALL_PHONE` | Place a call after you confirm | Runtime dialog | App info | `place_call` |
+| `READ_CALENDAR`, `WRITE_CALENDAR` | List, create, and delete events | Runtime dialog | App info | `list_events`, `create_event`, `delete_event` |
+| `CAMERA` | Photo or video you take | Runtime dialog | App info | `take_photo`, `take_video`, chat camera |
+| `RECORD_AUDIO` | Voice input | Runtime dialog | App info | chat microphone |
+| `ACCESS_COARSE_LOCATION`, `ACCESS_FINE_LOCATION` | Location when a tool asks | Runtime dialog first | App info | `get_location` |
+| `ACCESS_BACKGROUND_LOCATION` (API 29+) | Second step only, after foreground location | Separate request. Never on the first prompt. | App info | background location for a routine |
+| `READ_EXTERNAL_STORAGE` (`maxSdkVersion` 32) | Library names on older Android | Runtime dialog | App info | `list_recent_media` |
+| `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO` (API 33+), `READ_MEDIA_VISUAL_USER_SELECTED` (API 34+) | List photo, video, and audio names. Partial photo access counts as granted. The chat picker does not need this. | Runtime dialog | App info | `list_recent_media` |
+| Accessibility service | Read the screen and confirmed taps | System settings, after the disclosure. Restricted on Android 13+. | `ACTION_ACCESSIBILITY_SETTINGS` | `read_screen`, `accessibility_action`, `operate_app` |
+| Notification listener | Read alerts you can already see. No auto-reply. | System settings. Restricted on Android 13+. | `ACTION_NOTIFICATION_LISTENER_SETTINGS` | notification read and `reply_notification` |
+| `SYSTEM_ALERT_WINDOW` | Status bubble | Special settings, not a runtime dialog | `ACTION_MANAGE_OVERLAY_PERMISSION` | overlay bubble |
+| `SCHEDULE_EXACT_ALARM` | Routines on time. `USE_EXACT_ALARM` is not declared. | Special settings on API 31+. Older versions count as granted. | `ACTION_REQUEST_SCHEDULE_EXACT_ALARM` | routines |
+| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Keep a routine from being stopped | Request intent, then the battery list if that intent fails | `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, else `ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS` | routines |
+| `PACKAGE_USAGE_STATS` | Usage stats | Special settings | `ACTION_USAGE_ACCESS_SETTINGS` | usage tools |
+| `WRITE_SETTINGS` | Change a system setting such as brightness | Special settings | `ACTION_MANAGE_WRITE_SETTINGS` | settings writes |
+| `ACCESS_NOTIFICATION_POLICY` | Do Not Disturb | Special settings | `ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS` | `set_dnd` |
+| `MANAGE_EXTERNAL_STORAGE` | Optional all-files. Prefer the folder picker. Fix everything does not ask. | Special settings. Not nagged. | `ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` | all-files writes |
+| Storage Access Framework | Files in a folder you pick | System folder picker | `ACTION_OPEN_DOCUMENT_TREE` | file tools |
+| `QUERY_ALL_PACKAGES` | See installed apps. No extra dialog. | Install-time declaration | App info | list apps |
+| Shizuku | Optional. Missing or unauthorized is said plainly. Not in Fix everything. | Shizuku’s own permission if it is installed | Shizuku app | Shizuku connector tools |
+| Restricted settings (API 33+) | Sideload block on SMS, call log, accessibility, notification listener | No public intent. Try once, App info, ⋮, Allow restricted settings, return. | `ACTION_APPLICATION_DETAILS_SETTINGS` | the sensitive rows above |
+| Removed: `READ_PHONE_STATE`, `BLUETOOTH_CONNECT`, `MODIFY_AUDIO_SETTINGS` | Declared in 0.3.0 and unused by a tool | Not requested | — | — |
+| Not added: default SMS role, `USE_EXACT_ALARM`, `BLUETOOTH_SCAN`, `NEARBY_WIFI_DEVICES`, `WRITE_CALL_LOG` | No tool needs them | Not requested | — | — |
+
 ## 0.3.0 — 2026-11-26
 
 English

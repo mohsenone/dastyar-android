@@ -25,6 +25,11 @@ data class AccessItem(
     val whyEn: String,
     val nextFa: String,
     val nextEn: String,
+    val group: String = AccessGroups.SYSTEM,
+    val permissions: List<String> = emptyList(),
+    val target: String = PermissionTargets.APP_INFO,
+    /** False for optional nags such as all-files access and Shizuku. Fix everything skips these. */
+    val nag: Boolean = true,
 )
 
 data class AccessReport(
@@ -66,6 +71,13 @@ interface AccessProbe {
     val exactAlarmGranted: Boolean
     val usageStatsGranted: Boolean
     val batteryUnrestricted: Boolean
+    val writeSettingsGranted: Boolean get() = false
+    val dndGranted: Boolean get() = false
+
+    /** missing, unauthorized, ready, or unknown. Shizuku is optional. */
+    val shizuku: String get() = ShizukuStatusHook.UNKNOWN
+
+    fun permanentlyDenied(permission: String): Boolean = PermissionMemory.isPermanent(permission)
 }
 
 object PermissionDiagnostics {
@@ -161,16 +173,6 @@ object PermissionDiagnostics {
             ),
             locationItem(probe),
             backgroundLocationItem(probe),
-            runtimeItem(
-                probe,
-                id = "phone_state",
-                permission = Perms.READ_PHONE_STATE,
-                restricted = false,
-                titleFa = "وضعیت تلفن",
-                titleEn = "Phone state",
-                whyFa = "وضعیت خط برای ابزارهایی که به آن نیاز دارند.",
-                whyEn = "Line state for tools that need it.",
-            ),
             specialItem(
                 probe,
                 id = "accessibility",
@@ -200,6 +202,7 @@ object PermissionDiagnostics {
                 nextOffFa = "صفحهٔ نمایش روی برنامه‌ها را باز کنید و دستیار را مجاز کنید.",
                 nextOffEn = "Open the overlay page and allow Dastyar.",
             ),
+            mediaItem(probe),
             filesItem(probe),
             safItem(probe),
             alarmItem(probe),
@@ -228,9 +231,38 @@ object PermissionDiagnostics {
                 whyEn = "Routines can run late if the system sleeps the app.",
                 nextOnFa = "محدود نیست.",
                 nextOnEn = "Unrestricted.",
-                nextOffFa = "فهرست باتری را باز کنید و برای دستیار «محدود نشود» را بگذارید.",
-                nextOffEn = "Open the battery list and set Dastyar to unrestricted.",
+                nextOffFa = "درخواست باتری را بپذیرید، یا فهرست را باز کنید و «محدود نشود» را بگذارید.",
+                nextOffEn = "Accept the battery request, or open the list and set Dastyar to unrestricted.",
             ),
+            specialItem(
+                probe,
+                id = "write_settings",
+                on = probe.writeSettingsGranted,
+                restrictedWhenOff = false,
+                titleFa = "نوشتن تنظیمات",
+                titleEn = "Modify system settings",
+                whyFa = "روشنایی صفحه. بدون این اجازه دستیار فقط صفحهٔ سیستم را باز می‌کند.",
+                whyEn = "Screen brightness. Without it Dastyar only opens the system page.",
+                nextOnFa = "داده شده.",
+                nextOnEn = "Granted.",
+                nextOffFa = "صفحهٔ نوشتن تنظیمات را باز کنید و دستیار را مجاز کنید.",
+                nextOffEn = "Open modify system settings and allow Dastyar.",
+            ),
+            specialItem(
+                probe,
+                id = "dnd",
+                on = probe.dndGranted,
+                restrictedWhenOff = false,
+                titleFa = "مزاحم نشوید",
+                titleEn = "Do Not Disturb",
+                whyFa = "عوض کردن حالت مزاحم نشوید. بدون اجازه فقط صفحهٔ سیاست اعلان باز می‌شود.",
+                whyEn = "Change Do Not Disturb. Without the grant Dastyar only opens the policy page.",
+                nextOnFa = "داده شده.",
+                nextOnEn = "Granted.",
+                nextOffFa = "دسترسی سیاست اعلان را باز کنید و دستیار را مجاز کنید.",
+                nextOffEn = "Open notification policy access and allow Dastyar.",
+            ),
+            shizukuItem(probe),
         )
         val restrictedLikely = RestrictedSettings.likely(
             sdk = probe.sdkInt,
@@ -258,10 +290,11 @@ object PermissionDiagnostics {
         whyEn: String,
     ): AccessItem {
         if (probe.sdkInt < requiredFrom) {
-            return item(id, AccessState.GRANTED, titleFa, titleEn, whyFa, whyEn, "در این اندروید لازم نیست.", "Not required on this Android version.")
+            return item(id, AccessState.GRANTED, titleFa, titleEn, whyFa, whyEn, "در این اندروید لازم نیست.", "Not required on this Android version.", probe.sdkInt)
         }
-        val granted = probe.runtimeGranted(permission) && (extra == null || probe.runtimeGranted(extra))
-        return groupItem(probe, id, granted, restricted, titleFa, titleEn, whyFa, whyEn)
+        val names = listOfNotNull(permission, extra)
+        val granted = names.all { probe.runtimeGranted(it) }
+        return groupItem(probe, id, granted, restricted, names, titleFa, titleEn, whyFa, whyEn)
     }
 
     private fun groupItem(
@@ -269,23 +302,24 @@ object PermissionDiagnostics {
         id: String,
         granted: Boolean,
         restricted: Boolean,
+        permissions: List<String> = emptyList(),
         titleFa: String,
         titleEn: String,
         whyFa: String,
         whyEn: String,
     ): AccessItem {
-        val state = when {
-            granted -> AccessState.GRANTED
-            restricted && RestrictedSettings.applies(probe.sdkInt) -> AccessState.MAYBE_RESTRICTED
-            else -> AccessState.MISSING
-        }
+        val missing = permissions.filter { !probe.runtimeGranted(it) }
+        val state = RuntimeGrant.state(granted, restricted, probe.sdkInt, missing) { probe.permanentlyDenied(it) }
         val next = nextForRuntime(state)
-        return item(id, state, titleFa, titleEn, whyFa, whyEn, next.first, next.second)
+        return item(id, state, titleFa, titleEn, whyFa, whyEn, next.first, next.second, probe.sdkInt)
     }
 
     private fun locationItem(probe: AccessProbe): AccessItem {
-        val granted = probe.runtimeGranted(Perms.ACCESS_FINE_LOCATION) || probe.runtimeGranted(Perms.ACCESS_COARSE_LOCATION)
-        val state = if (granted) AccessState.GRANTED else AccessState.MISSING
+        val names = listOf(Perms.ACCESS_FINE_LOCATION, Perms.ACCESS_COARSE_LOCATION)
+        val granted = LocationAccess.foregroundGranted { probe.runtimeGranted(it) }
+        val state = RuntimeGrant.state(granted, restricted = false, probe.sdkInt, names.filter { !probe.runtimeGranted(it) }) {
+            probe.permanentlyDenied(it)
+        }
         val next = nextForRuntime(state)
         return item(
             "location",
@@ -296,11 +330,12 @@ object PermissionDiagnostics {
             "Coarse or fine location when a tool asks.",
             next.first,
             next.second,
+            probe.sdkInt,
         )
     }
 
     private fun backgroundLocationItem(probe: AccessProbe): AccessItem {
-        val foreground = probe.runtimeGranted(Perms.ACCESS_FINE_LOCATION) || probe.runtimeGranted(Perms.ACCESS_COARSE_LOCATION)
+        val foreground = LocationAccess.foregroundGranted { probe.runtimeGranted(it) }
         if (probe.sdkInt < 29) {
             val state = if (foreground) AccessState.GRANTED else AccessState.MISSING
             return item(
@@ -312,14 +347,11 @@ object PermissionDiagnostics {
                 "Background location is not a separate grant on this Android version.",
                 if (foreground) "با موقعیت معمولی داده می‌شود." else "اول موقعیت را بدهید.",
                 if (foreground) "Included with location." else "Grant location first.",
+                probe.sdkInt,
             )
         }
         val granted = probe.runtimeGranted(Perms.ACCESS_BACKGROUND_LOCATION)
-        val state = when {
-            granted -> AccessState.GRANTED
-            !foreground -> AccessState.MISSING
-            else -> AccessState.NEEDS_SETTINGS
-        }
+        val state = LocationAccess.backgroundState(probe.sdkInt) { probe.runtimeGranted(it) }
         val nextFa = when (state) {
             AccessState.GRANTED -> "داده شده."
             AccessState.MISSING -> "اول موقعیت دقیق یا تقریبی را بدهید، بعد موقعیت پس‌زمینه را."
@@ -336,9 +368,71 @@ object PermissionDiagnostics {
             "موقعیت پس‌زمینه",
             "Background location",
             "فقط برای روالی که واقعاً لازم دارد.",
-            "Only for a routine that truly needs it.",
+            "Only for a routine that truly needs it. It is never on the first location prompt.",
             nextFa,
             nextEn,
+            probe.sdkInt,
+        )
+    }
+
+    private fun mediaItem(probe: AccessProbe): AccessItem {
+        val names = MediaAccess.requestPermissions(probe.sdkInt)
+        val base = MediaAccess.state(probe.sdkInt) { probe.runtimeGranted(it) }
+        val state = if (base == AccessState.GRANTED) {
+            AccessState.GRANTED
+        } else if (names.isNotEmpty() && names.all { probe.permanentlyDenied(it) }) {
+            AccessState.NEEDS_SETTINGS
+        } else {
+            base
+        }
+        val limited = MediaAccess.limited(probe.sdkInt) { probe.runtimeGranted(it) }
+        val next = if (limited) {
+            "دسترسی محدود به عکس‌ها داده شده. انتخابگر سیستم برای یک فایل کافی است." to
+                "Limited photo access is granted. The system picker is enough for a single file."
+        } else {
+            nextForRuntime(state)
+        }
+        return item(
+            "media",
+            state,
+            "عکس و رسانه",
+            "Photos and media",
+            "خواندن کتابخانه وقتی ابزاری فهرست می‌خواهد. پیوست یک عکس از انتخابگر سیستم اجازهٔ کلی نمی‌خواهد.",
+            "Read the library when a tool lists it. Attaching one photo uses the system picker and does not need this grant.",
+            next.first,
+            next.second,
+            probe.sdkInt,
+        )
+    }
+
+    private fun shizukuItem(probe: AccessProbe): AccessItem {
+        val state = when (probe.shizuku) {
+            ShizukuStatusHook.READY -> AccessState.GRANTED
+            ShizukuStatusHook.UNAUTHORIZED -> AccessState.NEEDS_SETTINGS
+            else -> AccessState.MISSING
+        }
+        val nextFa = when (probe.shizuku) {
+            ShizukuStatusHook.READY -> "آماده است. اختیاری است و جای اجازه‌های معمولی نیست."
+            ShizukuStatusHook.UNAUTHORIZED -> "شیزوکو نصب است ولی دستیار مجاز نیست. از خود شیزوکو اجازه بدهید."
+            ShizukuStatusHook.MISSING -> "شیزوکو نصب نیست. این یک کمبود صادقانه است، نه یک اجازهٔ پنهان."
+            else -> "وضعیت شیزوکو از اینجا معلوم نشد."
+        }
+        val nextEn = when (probe.shizuku) {
+            ShizukuStatusHook.READY -> "Ready. It is optional and does not replace normal permissions."
+            ShizukuStatusHook.UNAUTHORIZED -> "Shizuku is installed but Dastyar is not authorized. Allow it inside Shizuku."
+            ShizukuStatusHook.MISSING -> "Shizuku is not installed. That is an honest gap, not a hidden permission."
+            else -> "Shizuku status could not be checked from here."
+        }
+        return item(
+            "shizuku",
+            state,
+            "شیزوکو",
+            "Shizuku",
+            "اختیاری. برای چند فرمان محدود settings و pm و am. اگر نباشد بقیهٔ دستیار کار می‌کند.",
+            "Optional. A few narrow settings, pm, and am commands. The rest of Dastyar works without it.",
+            nextFa,
+            nextEn,
+            probe.sdkInt,
         )
     }
 
@@ -399,8 +493,8 @@ object PermissionDiagnostics {
             restrictedWhenOff = false,
             titleFa = "همهٔ فایل‌ها",
             titleEn = "All files",
-            whyFa = "خواندن مسیرهای حافظه. دستیار این اجازه را پنهانی نمی‌گیرد.",
-            whyEn = "Read storage paths. Dastyar cannot grant this silently.",
+            whyFa = "اختیاری. پوشهٔ انتخاب‌شده کافی است. «رفع همه» این مورد را دوباره نمی‌پرسد.",
+            whyEn = "Optional. A chosen folder is enough. Fix everything does not ask for this again.",
             nextOnFa = "داده شده.",
             nextOnEn = "Granted.",
             nextOffFa = "صفحهٔ دسترسی به همهٔ فایل‌ها را باز کنید.",
@@ -486,7 +580,9 @@ object PermissionDiagnostics {
     private fun nextForRuntime(state: AccessState): Pair<String, String> = when (state) {
         AccessState.GRANTED -> "داده شده." to "Granted."
         AccessState.MISSING -> "دکمهٔ اجازه را بزنید و گفتگوی سیستم را بپذیرید." to "Tap Grant and accept the system dialog."
-        AccessState.NEEDS_SETTINGS -> "صفحهٔ تنظیمات را باز کنید." to "Open the settings page."
+        AccessState.NEEDS_SETTINGS ->
+            "گفتگوی سیستم دیگر نشان داده نمی‌شود. اطلاعات برنامه را باز کنید و اجازه را آنجا بدهید." to
+                "The system will not show the dialog again. Open app settings and allow it there."
         AccessState.MAYBE_RESTRICTED ->
             "یک‌بار اجازه را بخواهید. اگر فوراً رد شد، اطلاعات برنامه را باز کنید، منوی ⋮، اجازه به تنظیمات محدود، بعد دوباره تلاش کنید." to
                 "Request the grant once. If it is denied immediately, open app info, the ⋮ menu, Allow restricted settings, then try again."
@@ -501,7 +597,67 @@ object PermissionDiagnostics {
         whyEn: String,
         nextFa: String,
         nextEn: String,
-    ) = AccessItem(id, state, titleFa, titleEn, whyFa, whyEn, nextFa, nextEn)
+        sdk: Int = 1,
+    ) = AccessItem(
+        id = id,
+        state = state,
+        titleFa = titleFa,
+        titleEn = titleEn,
+        whyFa = whyFa,
+        whyEn = whyEn,
+        nextFa = nextFa,
+        nextEn = nextEn,
+        group = groupFor(id),
+        permissions = permissionsFor(id, sdk),
+        target = targetFor(id, state),
+        nag = id != "all_files" && id != "shizuku",
+    )
+
+    private fun groupFor(id: String): String = when (id) {
+        "sms" -> AccessGroups.MESSAGES
+        "call_phone", "call_log" -> AccessGroups.CALLS
+        "contacts" -> AccessGroups.CONTACTS
+        "accessibility", "overlay" -> AccessGroups.APPS
+        "notifications", "notification_listener" -> AccessGroups.NOTIFICATIONS
+        "media", "all_files", "saf" -> AccessGroups.FILES
+        "location", "background_location" -> AccessGroups.LOCATION
+        "camera", "microphone" -> AccessGroups.CAPTURE
+        else -> AccessGroups.SYSTEM
+    }
+
+    private fun targetFor(id: String, state: AccessState): String = when (id) {
+        "accessibility" -> PermissionTargets.ACCESSIBILITY
+        "notification_listener" -> PermissionTargets.LISTENER
+        "overlay" -> PermissionTargets.OVERLAY
+        "all_files" -> PermissionTargets.ALL_FILES
+        "saf" -> PermissionTargets.SAF
+        "exact_alarm" -> PermissionTargets.EXACT_ALARM
+        "usage_stats" -> PermissionTargets.USAGE
+        "battery" -> PermissionTargets.BATTERY
+        "write_settings" -> PermissionTargets.WRITE_SETTINGS
+        "dnd" -> PermissionTargets.DND
+        "shizuku" -> PermissionTargets.SHIZUKU
+        else -> if (state == AccessState.NEEDS_SETTINGS || state == AccessState.MAYBE_RESTRICTED) {
+            PermissionTargets.APP_INFO
+        } else {
+            PermissionTargets.RUNTIME
+        }
+    }
+
+    private fun permissionsFor(id: String, sdk: Int): List<String> = when (id) {
+        "notifications" -> if (sdk >= 33) listOf(Perms.POST_NOTIFICATIONS) else emptyList()
+        "sms" -> Perms.SMS_GROUP
+        "contacts" -> listOf(Perms.READ_CONTACTS, Perms.WRITE_CONTACTS)
+        "call_phone" -> listOf(Perms.CALL_PHONE)
+        "call_log" -> listOf(Perms.READ_CALL_LOG)
+        "calendar" -> listOf(Perms.READ_CALENDAR, Perms.WRITE_CALENDAR)
+        "camera" -> listOf(Perms.CAMERA)
+        "microphone" -> listOf(Perms.RECORD_AUDIO)
+        "location" -> listOf(Perms.ACCESS_COARSE_LOCATION, Perms.ACCESS_FINE_LOCATION)
+        "background_location" -> if (sdk >= 29) listOf(Perms.ACCESS_BACKGROUND_LOCATION) else emptyList()
+        "media" -> MediaAccess.requestPermissions(sdk)
+        else -> emptyList()
+    }
 }
 
 internal class AndroidAccessProbe(
@@ -560,4 +716,17 @@ internal class AndroidAccessProbe(
         get() = runCatching {
             context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
         }.getOrDefault(false)
+
+    override val writeSettingsGranted: Boolean
+        get() = runCatching { Settings.System.canWrite(context) }.getOrDefault(false)
+
+    override val dndGranted: Boolean
+        get() = runCatching {
+            context.getSystemService(android.app.NotificationManager::class.java).isNotificationPolicyAccessGranted
+        }.getOrDefault(false)
+
+    override val shizuku: String
+        get() = runCatching { ShizukuStatusHook.read() }.getOrDefault(ShizukuStatusHook.UNKNOWN)
+
+    override fun permanentlyDenied(permission: String): Boolean = PermissionMemory.isPermanent(permission)
 }

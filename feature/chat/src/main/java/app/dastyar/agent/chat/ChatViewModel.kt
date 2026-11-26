@@ -62,6 +62,7 @@ data class ChatUi(
     val pickerStatus: String = "",
     val pickerError: String? = null,
     val toolWarning: Boolean = false,
+    val visionWarning: Boolean = false,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -398,16 +399,18 @@ class ChatViewModel @Inject constructor(
                 return@launch
             }
             val modelId = conv.modelOverride?.takeIf { it.isNotBlank() } ?: provider.model
-            val fromList = if (snap.pickerProviderId == provider.id) {
-                snap.pickerModels.firstOrNull { it.id == modelId }?.tools
+            val listed = if (snap.pickerProviderId == provider.id) {
+                snap.pickerModels.firstOrNull { it.id == modelId }
             } else {
                 null
             }
-            val tools = fromList ?: withContext(Dispatchers.IO) {
-                modelCache.list(provider.id).firstOrNull { it.modelId == modelId }?.tools.toTri()
+            val cached = withContext(Dispatchers.IO) {
+                modelCache.list(provider.id).firstOrNull { it.modelId == modelId }
             }
+            val tools = listed?.tools ?: cached?.tools.toTri()
+            val vision = listed?.vision ?: cached?.vision.toTri()
             _state.update { cur ->
-                if (cur.activeId != conv.id) cur else cur.copy(toolWarning = tools == false)
+                if (cur.activeId != conv.id) cur else cur.copy(toolWarning = tools == false, visionWarning = vision == false)
             }
         }
     }

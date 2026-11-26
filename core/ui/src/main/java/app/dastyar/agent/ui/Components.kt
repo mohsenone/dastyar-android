@@ -28,13 +28,23 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+
+/** Activity sets this so a secret field can mark the window secure without blanking a whole list. */
+val LocalSecureRequest = staticCompositionLocalOf<(Boolean) -> Unit> { { } }
 
 fun t(lang: String, fa: String, en: String): String = if (lang.startsWith("fa")) fa else en
 
@@ -254,6 +264,26 @@ fun ConfirmPanel(
             ) { Text(approve) }
             SecondaryButton(deny, onDeny, modifier = Modifier.weight(1f))
         }
+    }
+}
+
+@Composable
+fun DirectedText(
+    text: String,
+    rtl: Boolean,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    style: TextStyle = MaterialTheme.typography.bodyMedium,
+) {
+    val direction = if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr
+    CompositionLocalProvider(LocalLayoutDirection provides direction) {
+        Text(
+            text = text,
+            modifier = modifier.fillMaxWidth(),
+            color = color,
+            textAlign = if (rtl) TextAlign.Right else TextAlign.Start,
+            style = style.copy(textDirection = if (rtl) TextDirection.Rtl else TextDirection.Ltr),
+        )
     }
 }
 

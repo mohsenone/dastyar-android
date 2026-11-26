@@ -8,30 +8,39 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import app.dastyar.agent.ui.DastyarTopBar
-import app.dastyar.agent.ui.StatusChip
-import app.dastyar.agent.ui.StatusTone
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import app.dastyar.agent.tools.AccessGroups
+import app.dastyar.agent.tools.AccessItem
 import app.dastyar.agent.tools.AccessState
 import app.dastyar.agent.tools.PermissionDiagnostics
+import app.dastyar.agent.tools.PermissionPlanner
 import app.dastyar.agent.tools.RestrictedSettings
+import app.dastyar.agent.ui.DirectedText
+import app.dastyar.agent.ui.DastyarTopBar
+import app.dastyar.agent.ui.PrimaryButton
+import app.dastyar.agent.ui.SecondaryButton
 import app.dastyar.agent.ui.SectionCard
-import app.dastyar.agent.ui.t
+import app.dastyar.agent.ui.SectionHeader
+import app.dastyar.agent.ui.Space
+import app.dastyar.agent.ui.StatusChip
+import app.dastyar.agent.ui.StatusTone
+
+private enum class PermPage { Status, Wizard, Fix }
 
 @Composable
 fun PermissionsScreen(
@@ -42,6 +51,7 @@ fun PermissionsScreen(
     showOnboardingChoices: Boolean,
     onProviders: () -> Unit,
     onChat: () -> Unit,
+    onPrivacy: () -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -53,73 +63,171 @@ fun PermissionsScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val report = remember(tick, safGranted, lang) { PermissionDiagnostics.inspect(context, safGranted) }
+    val report = remember(tick, safGranted) { PermissionDiagnostics.inspect(context, safGranted) }
+    var page by remember { mutableStateOf(if (showOnboardingChoices) PermPage.Wizard else PermPage.Status) }
+    var groupIndex by remember { mutableIntStateOf(0) }
+    var fixIds by remember { mutableStateOf<List<String>?>(null) }
+    var fixIndex by remember { mutableIntStateOf(0) }
+    val fa = lang.startsWith("fa")
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Space.s16),
+        verticalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
-        DastyarTopBar(t(lang, "اجازه‌ها", "Permissions"))
-        Text(
-            t(
-                lang,
-                "هر مورد را خودتان روشن می‌کنید. دستیار چیزی را پنهانی نمی‌گیرد. می‌توانید رد شوید و بعداً از تنظیمات برگردید.",
-                "You turn each item on. Dastyar never grants them silently. You can skip and come back from Settings.",
-            ),
-        )
-        if (report.restrictedLikely) {
-            Text(
-                t(
-                    lang,
-                    "روی اندروید ۱۳ و جدیدتر، نصب از بیرون فروشگاه تا «اجازه به تنظیمات محدود» پیامک، گزارش تماس، دسترس‌پذیری و اعلان را نمی‌دهد.",
-                    "On Android 13 and later, an install from outside the store cannot receive SMS, call log, accessibility, or notification access until you allow restricted settings.",
-                ),
-                color = MaterialTheme.colorScheme.error,
+        DastyarTopBar(stringResource(R.string.perm_title))
+        Text(stringResource(R.string.perm_intro), style = MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+            FilterChip(
+                selected = page == PermPage.Status,
+                onClick = { page = PermPage.Status; fixIds = null },
+                label = { Text(stringResource(R.string.perm_status)) },
+            )
+            FilterChip(
+                selected = page == PermPage.Wizard,
+                onClick = { page = PermPage.Wizard; fixIds = null },
+                label = { Text(stringResource(R.string.perm_wizard)) },
             )
         }
-        SectionCard(
-            title = t(lang, "اجازه به تنظیمات محدود", "Allow restricted settings"),
-            body = RestrictedSettings.guideFa() + "\n\n" + RestrictedSettings.guideEn(),
-            footer = {
-                Button(onClick = onAppInfo, modifier = Modifier.fillMaxWidth()) {
-                    Text(t(lang, "باز کردن اطلاعات برنامه", "Open app info"))
-                }
-            },
-        )
-        report.items.forEach { item ->
-            val title = if (lang.startsWith("fa")) item.titleFa else item.titleEn
-            val why = if (lang.startsWith("fa")) item.whyFa else item.whyEn
-            val next = if (lang.startsWith("fa")) item.nextFa else item.nextEn
-            SectionCard(
-                title = title,
-                badge = { StatusChip(stateLabel(lang, item.state), toneFor(item.state)) },
-                body = "$why\n$next",
-                footer = {
-                    if (item.state != AccessState.GRANTED) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { onAction(item.id) }, modifier = Modifier.weight(1f)) {
-                                Text(actionLabel(lang, item.id, item.state))
-                            }
-                            if (item.state == AccessState.MAYBE_RESTRICTED) {
-                                OutlinedButton(onClick = onAppInfo, modifier = Modifier.weight(1f)) {
-                                    Text(t(lang, "اطلاعات برنامه", "App info"))
-                                }
-                            }
-                        }
-                    }
+        PrimaryButton(stringResource(R.string.perm_fix_all), {
+            val queue = PermissionPlanner.fixQueue(report.items)
+            fixIds = queue.map { it.id }
+            fixIndex = 0
+            page = PermPage.Fix
+        }, Modifier.fillMaxWidth(), enabled = PermissionPlanner.fixQueue(report.items).isNotEmpty() || page == PermPage.Fix)
+        SecondaryButton(stringResource(R.string.perm_privacy_link), onPrivacy, Modifier.fillMaxWidth())
+        if (report.restrictedLikely || page != PermPage.Status) {
+            RestrictedGuide(fa = fa, onAppInfo = onAppInfo, emphasize = report.restrictedLikely)
+        }
+        when (page) {
+            PermPage.Status -> report.items.forEach { item ->
+                AccessRow(item, fa, onAction, onAppInfo)
+            }
+            PermPage.Wizard -> WizardGroup(
+                group = PermissionPlanner.wizardGroups[groupIndex.coerceIn(0, PermissionPlanner.wizardGroups.lastIndex)],
+                index = groupIndex,
+                count = PermissionPlanner.wizardGroups.size,
+                items = report.items,
+                fa = fa,
+                onAction = onAction,
+                onAppInfo = onAppInfo,
+                onBack = { if (groupIndex > 0) groupIndex-- },
+                onSkip = { if (groupIndex < PermissionPlanner.wizardGroups.lastIndex) groupIndex++ },
+            )
+            PermPage.Fix -> FixStep(
+                ids = fixIds.orEmpty(),
+                index = fixIndex,
+                items = report.items,
+                fa = fa,
+                onAction = onAction,
+                onAppInfo = onAppInfo,
+                onNext = {
+                    val last = (fixIds?.lastIndex ?: 0)
+                    if (fixIndex < last) fixIndex++ else page = PermPage.Status
                 },
             )
         }
         if (showOnboardingChoices) {
-            Button(onClick = onProviders, modifier = Modifier.fillMaxWidth()) {
-                Text(t(lang, "ادامه: افزودن کلید", "Continue: add a key"))
-            }
-            OutlinedButton(onClick = onChat, modifier = Modifier.fillMaxWidth()) {
-                Text(t(lang, "فعلاً رد شو و برو به گفتگو", "Skip for now and open chat"))
-            }
+            PrimaryButton(stringResource(R.string.perm_continue_key), onProviders, Modifier.fillMaxWidth())
+            SecondaryButton(stringResource(R.string.perm_skip_chat), onChat, Modifier.fillMaxWidth())
         }
     }
 }
 
+@Composable
+private fun RestrictedGuide(fa: Boolean, onAppInfo: () -> Unit, emphasize: Boolean) {
+    SectionCard(
+        title = stringResource(R.string.perm_restricted_title),
+        body = if (emphasize) stringResource(R.string.perm_restricted_lead) else "",
+        footer = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                DirectedText(
+                    if (fa) RestrictedSettings.guideFa() else RestrictedSettings.guideEn(),
+                    rtl = fa,
+                )
+                Text(stringResource(R.string.perm_other_language), style = MaterialTheme.typography.labelLarge)
+                DirectedText(
+                    if (fa) RestrictedSettings.guideEn() else RestrictedSettings.guideFa(),
+                    rtl = !fa,
+                )
+                SectionHeader(stringResource(R.string.perm_vendor_title))
+                DirectedText(RestrictedSettings.vendorNotes(if (fa) "fa" else "en"), rtl = fa)
+                PrimaryButton(stringResource(R.string.perm_app_info), onAppInfo, Modifier.fillMaxWidth())
+            }
+        },
+    )
+}
+
+@Composable
+private fun AccessRow(item: AccessItem, fa: Boolean, onAction: (String) -> Unit, onAppInfo: () -> Unit) {
+    SectionCard(
+        title = if (fa) item.titleFa else item.titleEn,
+        badge = { StatusChip(stateLabel(item.state), toneFor(item.state)) },
+        body = (if (fa) item.whyFa else item.whyEn) + "\n" + (if (fa) item.nextFa else item.nextEn),
+        footer = {
+            if (item.state != AccessState.GRANTED) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                    PrimaryButton(actionLabel(item), { onAction(item.id) }, Modifier.weight(1f))
+                    if (item.state == AccessState.MAYBE_RESTRICTED || item.state == AccessState.NEEDS_SETTINGS) {
+                        SecondaryButton(stringResource(R.string.perm_app_info), onAppInfo, Modifier.weight(1f))
+                    }
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun WizardGroup(
+    group: String,
+    index: Int,
+    count: Int,
+    items: List<AccessItem>,
+    fa: Boolean,
+    onAction: (String) -> Unit,
+    onAppInfo: () -> Unit,
+    onBack: () -> Unit,
+    onSkip: () -> Unit,
+) {
+    val rows = items.filter { it.group == group }
+    SectionHeader(groupTitle(group))
+    Text(stringResource(R.string.perm_fix_progress, index + 1, count), style = MaterialTheme.typography.labelLarge)
+    Text(groupWhy(group), style = MaterialTheme.typography.bodyMedium)
+    rows.forEach { AccessRow(it, fa, onAction, onAppInfo) }
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.s8), modifier = Modifier.fillMaxWidth()) {
+        if (index > 0) SecondaryButton(stringResource(R.string.perm_back), onBack, Modifier.weight(1f))
+        if (index < count - 1) {
+            SecondaryButton(stringResource(R.string.perm_skip), onSkip, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun FixStep(
+    ids: List<String>,
+    index: Int,
+    items: List<AccessItem>,
+    fa: Boolean,
+    onAction: (String) -> Unit,
+    onAppInfo: () -> Unit,
+    onNext: () -> Unit,
+) {
+    if (ids.isEmpty()) {
+        Text(stringResource(R.string.perm_done), style = MaterialTheme.typography.titleMedium)
+        return
+    }
+    val item = items.firstOrNull { it.id == ids.getOrElse(index) { ids.last() } } ?: return
+    Text(stringResource(R.string.perm_fix_progress, index + 1, ids.size), style = MaterialTheme.typography.labelLarge)
+    if (item.state == AccessState.MAYBE_RESTRICTED) {
+        Text(stringResource(R.string.perm_restricted_lead), color = MaterialTheme.colorScheme.error)
+    }
+    AccessRow(item, fa, onAction, onAppInfo)
+    PrimaryButton(
+        if (index < ids.lastIndex) stringResource(R.string.perm_next) else stringResource(R.string.perm_done),
+        onNext,
+        Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
 private fun toneFor(state: AccessState): StatusTone = when (state) {
     AccessState.GRANTED -> StatusTone.Positive
     AccessState.MISSING -> StatusTone.Warning
@@ -127,16 +235,48 @@ private fun toneFor(state: AccessState): StatusTone = when (state) {
     AccessState.MAYBE_RESTRICTED -> StatusTone.Danger
 }
 
-private fun stateLabel(lang: String, state: AccessState): String = when (state) {
-    AccessState.GRANTED -> t(lang, "داده شده", "Granted")
-    AccessState.MISSING -> t(lang, "داده نشده", "Missing")
-    AccessState.NEEDS_SETTINGS -> t(lang, "نیاز به تنظیمات", "Needs settings")
-    AccessState.MAYBE_RESTRICTED -> t(lang, "شاید تنظیمات محدود مانع است", "Possibly blocked by restricted settings")
+@Composable
+private fun stateLabel(state: AccessState): String = when (state) {
+    AccessState.GRANTED -> stringResource(R.string.perm_state_granted)
+    AccessState.MISSING -> stringResource(R.string.perm_state_missing)
+    AccessState.NEEDS_SETTINGS -> stringResource(R.string.perm_state_settings)
+    AccessState.MAYBE_RESTRICTED -> stringResource(R.string.perm_state_restricted)
 }
 
-private fun actionLabel(lang: String, id: String, state: AccessState): String {
-    if (id == "accessibility") return t(lang, "توضیح و روشن کردن", "Read disclosure and enable")
-    if (state == AccessState.MAYBE_RESTRICTED) return t(lang, "دوباره تلاش کن", "Try again")
-    if (state == AccessState.NEEDS_SETTINGS || id == "saf") return t(lang, "باز کردن", "Open")
-    return t(lang, "اجازه", "Grant")
+@Composable
+private fun actionLabel(item: AccessItem): String = when {
+    item.id == "accessibility" -> stringResource(R.string.perm_open)
+    item.state == AccessState.MAYBE_RESTRICTED -> stringResource(R.string.perm_try_again)
+    item.state == AccessState.NEEDS_SETTINGS || item.target != "runtime" -> stringResource(R.string.perm_fix)
+    else -> stringResource(R.string.perm_grant)
 }
+
+@Composable
+private fun groupTitle(group: String): String = stringResource(
+    when (group) {
+        AccessGroups.MESSAGES -> R.string.perm_group_messages
+        AccessGroups.CALLS -> R.string.perm_group_calls
+        AccessGroups.CONTACTS -> R.string.perm_group_contacts
+        AccessGroups.APPS -> R.string.perm_group_apps
+        AccessGroups.NOTIFICATIONS -> R.string.perm_group_notifications
+        AccessGroups.FILES -> R.string.perm_group_files
+        AccessGroups.LOCATION -> R.string.perm_group_location
+        AccessGroups.CAPTURE -> R.string.perm_group_capture
+        else -> R.string.perm_group_system
+    },
+)
+
+@Composable
+private fun groupWhy(group: String): String = stringResource(
+    when (group) {
+        AccessGroups.MESSAGES -> R.string.perm_why_messages
+        AccessGroups.CALLS -> R.string.perm_why_calls
+        AccessGroups.CONTACTS -> R.string.perm_why_contacts
+        AccessGroups.APPS -> R.string.perm_why_apps
+        AccessGroups.NOTIFICATIONS -> R.string.perm_why_notifications
+        AccessGroups.FILES -> R.string.perm_why_files
+        AccessGroups.LOCATION -> R.string.perm_why_location
+        AccessGroups.CAPTURE -> R.string.perm_why_capture
+        else -> R.string.perm_why_system
+    },
+)

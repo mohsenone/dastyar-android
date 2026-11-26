@@ -136,6 +136,7 @@ fun SettingsScreen(
     onMemories: () -> Unit,
     onDisclosure: () -> Unit,
     onPermissions: () -> Unit,
+    onPrivacy: () -> Unit,
     onPickFolder: () -> Unit,
     onConnectors: () -> Unit,
 ) {
@@ -209,7 +210,10 @@ fun SettingsScreen(
             Switch(checked = state.biometric, onCheckedChange = vm::setBiometric)
         }
         Button(onClick = onPermissions, modifier = Modifier.fillMaxWidth()) {
-            Text(t(lang, "اجازه‌ها و تنظیمات محدود", "Permissions and restricted settings"))
+            Text(stringResource(R.string.perm_title))
+        }
+        OutlinedButton(onClick = onPrivacy, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.settings_privacy))
         }
         Button(onClick = onProviders, modifier = Modifier.fillMaxWidth()) { Text(t(lang, "ارائه‌دهندگان", "Providers")) }
         OutlinedButton(onClick = onDisclosure, modifier = Modifier.fillMaxWidth()) {

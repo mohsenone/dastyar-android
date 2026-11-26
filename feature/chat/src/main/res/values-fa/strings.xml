@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vision_warning">این مدل بینایی ندارد. عکس روی گوشی می‌ماند و به‌صورت پیکسل فرستاده نمی‌شود.</string>
+    <string name="attach_image">پیوست عکس</string>
+</resources>

@@ -3,4 +3,15 @@
     <string name="app_name">دستیار</string>
     <string name="shortcut_new_chat">گفتگوی تازه</string>
     <string name="shortcut_voice">صدا</string>
+    <string name="nav_chat">گفتگو</string>
+    <string name="nav_providers">کلیدها</string>
+    <string name="nav_connectors">اتصال‌ها</string>
+    <string name="nav_routines">روال</string>
+    <string name="nav_settings">تنظیم</string>
+    <string name="widget_title">دستیار</string>
+    <string name="widget_body">باز کردن گفتگوی فعلی</string>
+    <string name="widget_description">دستیار را روی گفتگوی فعلی باز می‌کند. گفتگوی تازه نمی‌سازد.</string>
+    <string name="tile_label">دستیار</string>
+    <string name="tile_subtitle">باز کردن گفتگو</string>
+    <string name="shizuku_missing">شیزوکو نصب نیست. اختیاری است.</string>
 </resources>

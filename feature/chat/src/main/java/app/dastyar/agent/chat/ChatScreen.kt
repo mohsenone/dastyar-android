@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Mic
@@ -52,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -70,6 +72,7 @@ fun ChatScreen(
     vm: ChatViewModel,
     ensureMic: suspend () -> Boolean,
     takePhoto: suspend () -> String?,
+    pickImage: suspend () -> String?,
     onOpenProviders: () -> Unit,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -232,8 +235,16 @@ fun ChatScreen(
                         modifier = Modifier.padding(horizontal = Space.s16),
                         style = MaterialTheme.typography.labelMedium,
                     )
+                    if (state.visionWarning) {
+                        Text(
+                            stringResource(R.string.vision_warning),
+                            modifier = Modifier.padding(horizontal = Space.s16),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
-                ComposerBar(state, lang, vm, ensureMic, takePhoto, scope)
+                ComposerBar(state, lang, vm, ensureMic, takePhoto, pickImage, scope)
             }
         }
         if (state.pickerOpen) {
@@ -301,6 +312,7 @@ private fun ComposerBar(
     vm: ChatViewModel,
     ensureMic: suspend () -> Boolean,
     takePhoto: suspend () -> String?,
+    pickImage: suspend () -> String?,
     scope: kotlinx.coroutines.CoroutineScope,
 ) {
     Surface(
@@ -318,6 +330,14 @@ private fun ComposerBar(
                 }
             }) {
                 Icon(Icons.Outlined.PhotoCamera, contentDescription = t(lang, "عکس", "Photo"))
+            }
+            IconButton(onClick = {
+                scope.launch {
+                    val path = pickImage()
+                    if (path != null) vm.attach(path)
+                }
+            }) {
+                Icon(Icons.Outlined.Image, contentDescription = stringResource(R.string.attach_image))
             }
             IconButton(onClick = {
                 scope.launch {

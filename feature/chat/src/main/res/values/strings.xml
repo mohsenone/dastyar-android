@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vision_warning">This model has no vision. The photo stays on the phone and is not sent as pixels.</string>
+    <string name="attach_image">Attach a photo</string>
+</resources>

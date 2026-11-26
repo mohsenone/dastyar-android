@@ -26,10 +26,14 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -144,6 +148,13 @@ class AgentLoop @Inject constructor(
         foreground.enter()
         try {
             runLocked(request, emit)
+        } catch (cancelled: CancellationException) {
+            val lang = runCatching { settings.current().language }.getOrDefault("en")
+            withContext(NonCancellable) {
+                emit(AgentEvent.DraftCleared(request.conversationId))
+                emit(AgentEvent.Failed(request.conversationId, stopped(lang), false))
+            }
+            throw cancelled
         } finally {
             current.set(null)
             foreground.exit()
@@ -199,16 +210,37 @@ class AgentLoop @Inject constructor(
             val text = StringBuilder()
             val calls = mutableListOf<LlmToolCall>()
             var failure: LlmStreamEvent.Failure? = null
-            client.stream(LlmRequest(messages, specs, options)).collect { event ->
-                when (event) {
-                    is LlmStreamEvent.Text -> {
-                        text.append(event.delta)
-                        emit(AgentEvent.Token(request.conversationId, event.delta))
+            var attempt = 0
+            while (true) {
+                text.clear()
+                calls.clear()
+                failure = null
+                try {
+                    client.stream(LlmRequest(messages, specs, options)).collect { event ->
+                        when (event) {
+                            is LlmStreamEvent.Text -> {
+                                text.append(event.delta)
+                                emit(AgentEvent.Token(request.conversationId, event.delta))
+                            }
+                            is LlmStreamEvent.ToolCalls -> calls += event.calls
+                            is LlmStreamEvent.Failure -> failure = event
+                            LlmStreamEvent.Done -> Unit
+                        }
                     }
-                    is LlmStreamEvent.ToolCalls -> calls += event.calls
-                    is LlmStreamEvent.Failure -> failure = event
-                    LlmStreamEvent.Done -> Unit
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    failure = LlmStreamEvent.Failure(
+                        app.dastyar.agent.network.LlmErrorCode.UNKNOWN,
+                        TransientRetry.publicError(error.message.orEmpty(), if (lang.startsWith("fa")) "درخواست ناموفق بود." else "The request failed."),
+                        false,
+                    )
                 }
+                val pending = failure ?: break
+                val emitted = text.isNotEmpty() || calls.isNotEmpty()
+                if (!TransientRetry.shouldRetry(pending.code, pending.suggestProxy, emitted, attempt)) break
+                delay(TransientRetry.delayMs(attempt))
+                attempt++
             }
             val error = failure
             if (error != null) {
@@ -451,7 +483,7 @@ class AgentLoop @Inject constructor(
                     if (fa) "محدودیت نرخ (429). کمی بعد دوباره تلاش کنید." else "Rate limited (429). Wait and try again."
                 app.dastyar.agent.network.LlmErrorCode.NETWORK ->
                     if (fa) "شبکه قطع است یا مسدود شده. یک آدرس پایهٔ سفارشی (پروکسی) تنظیم کنید." else "The network failed or looks blocked. Set a custom base URL (proxy)."
-                else -> error.message.ifBlank { if (fa) "خطای ناشناخته" else "Unknown error" }
+                else -> TransientRetry.publicError(error.message, if (fa) "درخواست ناموفق بود." else "The request failed.")
             }
             return if (error.suggestProxy && error.code != app.dastyar.agent.network.LlmErrorCode.NETWORK && error.code != app.dastyar.agent.network.LlmErrorCode.FORBIDDEN) {
                 base + if (fa) " اگر شبکه مسدود است، آدرس پایهٔ سفارشی بگذارید." else " If the network is blocked, set a custom base URL."
@@ -466,6 +498,7 @@ class AgentLoop @Inject constructor(
         fun missingKey(lang: String) = if (lang.startsWith("fa")) "ارائه‌دهنده یا کلید یا مدل تنظیم نشده." else "No provider, key, or model is set."
         fun unlock(lang: String) = if (lang.startsWith("fa")) "برای استفاده از کلید، قفل دستگاه را باز کنید." else "Unlock the device to use the saved key."
         fun emptyReply(lang: String) = if (lang.startsWith("fa")) "(پاسخ خالی)" else "(empty reply)"
+        fun stopped(lang: String) = if (lang.startsWith("fa")) "متوقف شد." else "Stopped."
         fun maxSteps(lang: String) = if (lang.startsWith("fa")) "به سقف ۱۲ گام ابزار رسید." else "Stopped after 12 tool steps."
         fun titleFor(risk: RiskLevel, lang: String): String = when (risk) {
             RiskLevel.DANGEROUS -> if (lang.startsWith("fa")) "تأیید عمل خطرناک" else "Confirm a dangerous action"

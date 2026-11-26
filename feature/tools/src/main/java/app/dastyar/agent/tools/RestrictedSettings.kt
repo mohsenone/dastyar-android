@@ -22,6 +22,20 @@ object RestrictedSettings {
 
     fun guide(lang: String): String = if (lang.startsWith("fa")) guideFa() else guideEn()
 
+    fun vendorNotes(lang: String): String = if (lang.startsWith("fa")) vendorFa() else vendorEn()
+
+    fun vendorEn(): String = """
+        Samsung: the ⋮ menu can stay hidden until you try the blocked switch once. Sleeping apps and battery settings can also stop a routine.
+        Xiaomi / MIUI: Autostart and Battery saver are separate from Android permissions. If a grant sticks and the app still dies, check those two screens. The wording changes by version.
+        Huawei: App launch and battery may be locked on their own. This is not a promise that every skin shows the same menu.
+    """.trimIndent()
+
+    fun vendorFa(): String = """
+        سامسونگ: منوی ⋮ گاهی تا یک‌بار تلاش برای کلید مسدود دیده نمی‌شود. «برنامه‌های خواب» و باتری هم می‌توانند روال را متوقف کنند.
+        شیائومی / MIUI: شروع خودکار و ذخیرهٔ باتری از اجازهٔ اندروید جدا هستند. اگر اجازه می‌ماند ولی برنامه بسته می‌شود، همان دو صفحه را ببینید. متن منو با نسخه عوض می‌شود.
+        هواوی: اجرای برنامه و باتری ممکن است جدا قفل باشند. این وعده نیست که هر پوسته همان منو را نشان می‌دهد.
+    """.trimIndent()
+
     fun guideFa(): String = """
         اجازه به تنظیمات محدود (برای نصب از بیرون فروشگاه):
         1. یک‌بار تلاش کنید اجازهٔ پیامک را بدهید یا دسترس‌پذیری را روشن کنید (ممکن است سیستم رد کند یا گزینه خاکستری باشد؛ این طبیعی است).
@@ -60,15 +74,18 @@ object ComponentLists {
 object PermissionMessages {
     fun denied(lang: String, permissions: Collection<String>, sdk: Int): String {
         val fa = lang.startsWith("fa")
+        val names = permissions.map { it.substringAfterLast('.') }.distinct().joinToString(", ")
         val base = if (fa) "اجازه داده نشد." else "Permission denied."
+        val named = if (names.isBlank()) base else "$base ($names)"
+        val fix = if (fa) "صفحهٔ اجازه‌ها را باز کنید و «رفع» را بزنید." else "Open Permissions and tap Fix."
         if (!RestrictedSettings.applies(sdk) || !RestrictedSettings.touchesRuntime(permissions)) {
-            return if (fa) "$base از صفحهٔ اجازه‌ها در تنظیمات می‌توانید دوباره تلاش کنید." else "$base Grant it from the Permissions screen in Settings, then retry."
+            return "$named $fix"
         }
         val lead = if (fa) {
-            "$base برای نصب از بیرون فروشگاه، اندروید ۱۳ و جدیدتر پیامک و گزارش تماس را تا اجازه به تنظیمات محدود نمی‌دهد. بعد از آن دوباره تلاش کنید."
+            "$named برای نصب از بیرون فروشگاه، اندروید ۱۳ و جدیدتر پیامک و گزارش تماس را تا اجازه به تنظیمات محدود نمی‌دهد."
         } else {
-            "$base On Android 13 and later, a sideloaded app cannot receive SMS or call-log access until you allow restricted settings. Then retry."
+            "$named On Android 13 and later, a sideloaded app cannot receive SMS or call-log access until you allow restricted settings."
         }
-        return lead + "\n" + RestrictedSettings.guide(lang)
+        return lead + "\n" + RestrictedSettings.guide(lang) + "\n" + fix
     }
 }

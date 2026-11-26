@@ -10,7 +10,6 @@ object Perms {
     const val RECEIVE_WAP_PUSH = "android.permission.RECEIVE_WAP_PUSH"
     const val CALL_PHONE = "android.permission.CALL_PHONE"
     const val READ_CALL_LOG = "android.permission.READ_CALL_LOG"
-    const val READ_PHONE_STATE = "android.permission.READ_PHONE_STATE"
     const val READ_CONTACTS = "android.permission.READ_CONTACTS"
     const val WRITE_CONTACTS = "android.permission.WRITE_CONTACTS"
     const val READ_CALENDAR = "android.permission.READ_CALENDAR"
@@ -20,6 +19,11 @@ object Perms {
     const val ACCESS_FINE_LOCATION = "android.permission.ACCESS_FINE_LOCATION"
     const val ACCESS_COARSE_LOCATION = "android.permission.ACCESS_COARSE_LOCATION"
     const val ACCESS_BACKGROUND_LOCATION = "android.permission.ACCESS_BACKGROUND_LOCATION"
+    const val READ_EXTERNAL_STORAGE = "android.permission.READ_EXTERNAL_STORAGE"
+    const val READ_MEDIA_IMAGES = "android.permission.READ_MEDIA_IMAGES"
+    const val READ_MEDIA_VIDEO = "android.permission.READ_MEDIA_VIDEO"
+    const val READ_MEDIA_AUDIO = "android.permission.READ_MEDIA_AUDIO"
+    const val READ_MEDIA_VISUAL_USER_SELECTED = "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
 
     val SMS_GROUP = listOf(READ_SMS, SEND_SMS, RECEIVE_SMS, RECEIVE_MMS, RECEIVE_WAP_PUSH)
 

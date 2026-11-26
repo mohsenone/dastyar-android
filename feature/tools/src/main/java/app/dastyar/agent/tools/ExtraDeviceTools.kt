@@ -7,9 +7,12 @@ import android.content.Intent
 import android.media.AudioManager
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.MediaStore
 import android.provider.Settings
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -291,6 +294,70 @@ internal fun extraDeviceTools(
             }
             nm.setInterruptionFilter(filter)
             ToolResult(true, "dnd=${args.optString("filter")}")
+        },
+        tool(
+            "list_recent_media",
+            "List display names of recent photos, videos, and audio. Uses the media permission for this Android version. Does not read or upload file bytes. One photo attachment should use the system photo picker instead.",
+            obj("limit" to int()),
+            RiskLevel.CONFIRM,
+            { _, lang -> bi(lang, "فهرست نام رسانه‌های اخیر", "List recent media names") },
+        ) { args, ctx ->
+            val sdk = Build.VERSION.SDK_INT
+            fun held(permission: String) =
+                ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+            val perms = MediaAccess.requestPermissions(sdk)
+            if (MediaAccess.state(sdk, ::held) != AccessState.GRANTED) {
+                val ok = ui.ensurePermissions(
+                    perms,
+                    bi(
+                        ctx.lang,
+                        "برای فهرست کتابخانه به اجازهٔ رسانه نیاز است. یک عکس را می‌توانید بدون این اجازه با انتخابگر سیستم پیوست کنید.",
+                        "Listing the library needs media access. You can attach one photo with the system picker without this grant.",
+                    ),
+                )
+                if (!ok && MediaAccess.state(sdk, ::held) != AccessState.GRANTED) {
+                    return@tool ToolResult(false, PermissionMessages.denied(ctx.lang, perms, sdk))
+                }
+            }
+            val limit = args.optInt("limit", 15).coerceIn(1, 30)
+            val names = mutableListOf<String>()
+            fun take(uri: Uri, kind: String) {
+                if (names.size >= limit) return
+                context.contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, "${MediaStore.MediaColumns.DATE_ADDED} DESC")
+                    ?.use { cursor ->
+                        val column = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
+                        while (cursor.moveToNext() && names.size < limit) {
+                            val name = if (column >= 0) cursor.getString(column).orEmpty() else ""
+                            if (name.isNotBlank()) names += "$kind: $name"
+                        }
+                    }
+            }
+            val legacy = sdk < 33 && held(Perms.READ_EXTERNAL_STORAGE)
+            val partial = sdk >= 34 && held(Perms.READ_MEDIA_VISUAL_USER_SELECTED)
+            if (legacy || partial || held(Perms.READ_MEDIA_IMAGES) || sdk < 33) {
+                val images = if (sdk >= 29) MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                }
+                take(images, "photo")
+            }
+            if (legacy || partial || held(Perms.READ_MEDIA_VIDEO)) {
+                val videos = if (sdk >= 29) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                }
+                take(videos, "video")
+            }
+            if (legacy || held(Perms.READ_MEDIA_AUDIO)) {
+                val audio = if (sdk >= 29) MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                }
+                take(audio, "audio")
+            }
+            ToolResult(true, names.joinToString("\n").ifBlank {
+                bi(ctx.lang, "رسانه‌ای پیدا نشد.", "No media found.")
+            })
         },
     )
 }

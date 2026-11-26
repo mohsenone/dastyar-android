@@ -38,6 +38,8 @@ interface UiBridge {
     fun openAppSettings()
     fun openBatterySettings()
     fun openLocationSettings()
+    fun openWriteSettings()
+    fun openNotificationPolicySettings()
     suspend fun authenticate(title: String): Boolean
     fun showOverlay()
     fun hideOverlay()
@@ -103,7 +105,7 @@ object ToolCategories {
         ) -> "messaging"
         name in setOf("dial", "place_call", "call_log", "search_contacts", "write_contact") -> "phone"
         name in setOf("list_files", "read_file", "write_file", "delete_file", "open_all_files_settings") -> "files"
-        name in setOf("take_photo", "take_video", "capture_screen") -> "media"
+        name in setOf("take_photo", "take_video", "capture_screen", "list_recent_media") -> "media"
         name == "location" -> "location"
         name in setOf("read_screen", "accessibility_action", "operate_app", "wait_for_element") -> "accessibility"
         name in setOf("web_fetch", "open_url") -> "web"

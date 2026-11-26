@@ -2,11 +2,11 @@ package app.dastyar.agent
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -54,8 +54,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -81,12 +83,19 @@ import app.dastyar.agent.providers.ProvidersScreen
 import app.dastyar.agent.settings.AuditScreen
 import app.dastyar.agent.settings.DisclosureScreen
 import app.dastyar.agent.settings.MemoriesScreen
+import app.dastyar.agent.connectors.ShizukuBridge
 import app.dastyar.agent.settings.OnboardingScreen
 import app.dastyar.agent.settings.PermissionsScreen
+import app.dastyar.agent.settings.PrivacyScreen
 import app.dastyar.agent.settings.RoutinesScreen
 import app.dastyar.agent.settings.SettingsScreen
 import app.dastyar.agent.settings.SettingsViewModel
+import app.dastyar.agent.tools.LocationAccess
+import app.dastyar.agent.tools.MediaAccess
+import app.dastyar.agent.tools.PermissionMemory
 import app.dastyar.agent.tools.RestrictedSettings
+import app.dastyar.agent.ui.DirectedText
+import app.dastyar.agent.ui.LocalSecureRequest
 import app.dastyar.agent.tools.RiskLevel
 import app.dastyar.agent.ui.ConfirmPanel
 import app.dastyar.agent.ui.DastyarSnackbarHost
@@ -157,6 +166,9 @@ class MainActivity : AppCompatActivity() {
                 chatVm.newChat()
                 if (Bootstrap.onboardingDone(this)) routes.value = "chat"
             }
+            ACTION_OPEN_CHAT -> {
+                if (Bootstrap.onboardingDone(this)) routes.value = "chat"
+            }
             ACTION_VOICE -> {
                 chatVm.requestVoice()
                 if (Bootstrap.onboardingDone(this)) routes.value = "chat"
@@ -222,7 +234,11 @@ class MainActivity : AppCompatActivity() {
             }
             enableEdgeToEdge(statusBarStyle = bar, navigationBarStyle = bar)
         }
-        androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides direction) {
+        var secureSecret by remember { mutableStateOf(false) }
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalLayoutDirection provides direction,
+            LocalSecureRequest provides { secureSecret = it },
+        ) {
             DastyarTheme(dark = dark, dynamicColor = settings.colorMode == Appearance.DYNAMIC) {
                 val nav = rememberNavController()
                 val back by nav.currentBackStackEntryAsState()
@@ -240,6 +256,7 @@ class MainActivity : AppCompatActivity() {
                 val docReply = remember { androidx.compose.runtime.mutableStateOf<CompletableDeferred<String?>?>(null) }
                 val permReply = remember { androidx.compose.runtime.mutableStateOf<CompletableDeferred<Boolean>?>(null) }
                 var restrictedHelp by remember { mutableStateOf(false) }
+                var settingsHelp by remember { mutableStateOf(false) }
                 val epoch by ui.resumeEpoch.collectAsStateWithLifecycle()
 
                 fun finishPerm(ok: Boolean) {
@@ -247,21 +264,31 @@ class MainActivity : AppCompatActivity() {
                     permReply.value = null
                     perm = null
                     restrictedHelp = false
+                    settingsHelp = false
                     reply.complete(ok)
                 }
 
                 val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+                    PermissionMemory.record(result) { permission ->
+                        ActivityCompat.shouldShowRequestPermissionRationale(this@MainActivity, permission)
+                    }
                     val ok = result.isNotEmpty() && result.values.all { it }
-                    if (ok) {
-                        finishPerm(true)
-                    } else if (RestrictedSettings.applies(Build.VERSION.SDK_INT) && RestrictedSettings.touchesRuntime(permNeeded)) {
-                        restrictedHelp = true
-                    } else {
-                        finishPerm(false)
+                    val blocked = permNeeded.filter { PermissionMemory.isPermanent(it) }
+                    when {
+                        ok -> finishPerm(true)
+                        RestrictedSettings.applies(Build.VERSION.SDK_INT) && RestrictedSettings.touchesRuntime(permNeeded) ->
+                            restrictedHelp = true
+                        blocked.isNotEmpty() -> settingsHelp = true
+                        else -> finishPerm(false)
                     }
                 }
-                LaunchedEffect(epoch, restrictedHelp) {
-                    if (!restrictedHelp) return@LaunchedEffect
+                LaunchedEffect(epoch) {
+                    PermissionMemory.reconcile { permission ->
+                        ContextCompat.checkSelfPermission(this@MainActivity, permission) == PackageManager.PERMISSION_GRANTED
+                    }
+                }
+                LaunchedEffect(epoch, restrictedHelp, settingsHelp) {
+                    if (!restrictedHelp && !settingsHelp) return@LaunchedEffect
                     val reply = permReply.value ?: return@LaunchedEffect
                     if (reply.isCompleted) return@LaunchedEffect
                     val still = permNeeded.filter { permission ->
@@ -269,6 +296,12 @@ class MainActivity : AppCompatActivity() {
                             android.content.pm.PackageManager.PERMISSION_GRANTED
                     }
                     if (still.isEmpty()) finishPerm(true)
+                }
+                val galleryReply = remember { androidx.compose.runtime.mutableStateOf<CompletableDeferred<String?>?>(null) }
+                val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                    val reply = galleryReply.value
+                    galleryReply.value = null
+                    reply?.complete(uri?.let { copyShare(it) })
                 }
                 val photoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
                     val reply = photoReply.value
@@ -319,12 +352,9 @@ class MainActivity : AppCompatActivity() {
                     reply?.complete(uri?.toString())
                 }
 
-                LaunchedEffect(route) {
-                    if (route == "providers" || route == "connectors") {
-                        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-                    } else {
-                        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                    }
+                LaunchedEffect(route, secureSecret) {
+                    val secretOnScreen = secureSecret || route == "connectors"
+                    SecureSurfaces.apply(window, secretOnScreen && !SecureSurfaces.blocksDrawing())
                 }
                 LaunchedEffect(Unit) {
                     routes.collect { dest ->
@@ -345,13 +375,22 @@ class MainActivity : AppCompatActivity() {
                                 if (needed.isEmpty()) {
                                     request.reply.complete(true)
                                 } else {
-                                    permNeeded = needed
+                                    val askable = needed.filter { !PermissionMemory.isPermanent(it) }
+                                    permNeeded = if (askable.isEmpty()) needed else askable
                                     permReply.value = request.reply
                                     restrictedHelp = false
-                                    perm = request
+                                    settingsHelp = false
+                                    if (askable.isEmpty()) {
+                                        val restricted = RestrictedSettings.applies(Build.VERSION.SDK_INT) &&
+                                            RestrictedSettings.touchesRuntime(needed)
+                                        if (restricted) restrictedHelp = true else settingsHelp = true
+                                    } else {
+                                        perm = request
+                                    }
                                     request.reply.await()
                                     perm = null
                                     restrictedHelp = false
+                                    settingsHelp = false
                                 }
                             }
                             is UiRequest.Photo -> {
@@ -404,11 +443,11 @@ class MainActivity : AppCompatActivity() {
                     bottomBar = {
                         if (route in TOP) {
                             NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-                                NavItem(nav, route, "chat", t(lang, "گفتگو", "Chat"), Icons.AutoMirrored.Outlined.Chat)
-                                NavItem(nav, route, "providers", t(lang, "کلیدها", "Providers"), Icons.Outlined.Key)
-                                NavItem(nav, route, "connectors", t(lang, "اتصال", "Links"), Icons.Outlined.Hub)
-                                NavItem(nav, route, "routines", t(lang, "روال", "Routines"), Icons.Outlined.Schedule)
-                                NavItem(nav, route, "settings", t(lang, "تنظیم", "Settings"), Icons.Outlined.Settings)
+                                NavItem(nav, route, "chat", stringResource(R.string.nav_chat), Icons.AutoMirrored.Outlined.Chat)
+                                NavItem(nav, route, "providers", stringResource(R.string.nav_providers), Icons.Outlined.Key)
+                                NavItem(nav, route, "connectors", stringResource(R.string.nav_connectors), Icons.Outlined.Hub)
+                                NavItem(nav, route, "routines", stringResource(R.string.nav_routines), Icons.Outlined.Schedule)
+                                NavItem(nav, route, "settings", stringResource(R.string.nav_settings), Icons.Outlined.Settings)
                             }
                         }
                     },
@@ -443,6 +482,16 @@ class MainActivity : AppCompatActivity() {
                                         listOf(Manifest.permission.RECORD_AUDIO),
                                         t(lang, "برای شنیدن صدا میکروفون لازم است. اگر موتور گفتار فارسی نباشد، انگلیسی را امتحان کنید.", "Microphone is required to listen. If the phone has no Persian recognizer, try English."),
                                     )
+                                },
+                                pickImage = {
+                                    val reply = CompletableDeferred<String?>()
+                                    galleryReply.value = reply
+                                    galleryLauncher.launch(
+                                        ActivityResultContracts.PickVisualMedia.ImageOnly.let {
+                                            androidx.activity.result.PickVisualMediaRequest(it)
+                                        },
+                                    )
+                                    reply.await()
                                 },
                                 takePhoto = takePhoto@{
                                     val granted = ui.ensurePermissions(
@@ -481,6 +530,7 @@ class MainActivity : AppCompatActivity() {
                                 onMemories = { nav.navigate("memories") },
                                 onDisclosure = { nav.navigate("disclosure") },
                                 onPermissions = { nav.navigate("permissions?onboarding=0") },
+                                onPrivacy = { nav.navigate("privacy") },
                                 onConnectors = { nav.navigate("connectors") },
                                 onPickFolder = {
                                     scope.launch { ui.pickDirectory() }
@@ -497,6 +547,7 @@ class MainActivity : AppCompatActivity() {
                                 safGranted = !settings.safTreeUri.isNullOrBlank(),
                                 showOnboardingChoices = fromOnboarding,
                                 onAppInfo = ui::openAppSettings,
+                                onPrivacy = { nav.navigate("privacy") },
                                 onProviders = {
                                     settingsVm.finishOnboarding()
                                     Bootstrap.writeOnboarding(this@MainActivity, true)
@@ -587,19 +638,42 @@ class MainActivity : AppCompatActivity() {
                                                 t(lang, "موقعیت فقط وقتی یک ابزار بخواهد خوانده می‌شود.", "Location is read only when a tool asks."),
                                             )
                                         }
-                                        "background_location" -> if (Build.VERSION.SDK_INT >= 29) {
-                                            scope.launch {
+                                        "background_location" -> scope.launch {
+                                            val foreground = ContextCompat.checkSelfPermission(
+                                                this@MainActivity,
+                                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                            ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+                                                this@MainActivity,
+                                                Manifest.permission.ACCESS_COARSE_LOCATION,
+                                            ) == PackageManager.PERMISSION_GRANTED
+                                            if (!LocationAccess.canRequestBackground(Build.VERSION.SDK_INT, foreground)) {
+                                                ui.ensurePermissions(
+                                                    listOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION),
+                                                    t(lang, "اول موقعیت دقیق یا تقریبی را بدهید. موقعیت پس‌زمینه گام دوم است.", "Grant fine or coarse location first. Background location is a second step."),
+                                                )
+                                            } else {
                                                 ui.ensurePermissions(
                                                     listOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
                                                     t(lang, "موقعیت پس‌زمینه جدا است و می‌توانید رد کنید.", "Background location is separate, and you can deny it."),
                                                 )
                                             }
                                         }
-                                        "phone_state" -> scope.launch {
+                                        "media" -> scope.launch {
                                             ui.ensurePermissions(
-                                                listOf(Manifest.permission.READ_PHONE_STATE),
-                                                t(lang, "وضعیت تلفن برای ابزارهایی است که وضعیت خط را می‌خواهند.", "Phone state is for tools that need the line status."),
+                                                MediaAccess.requestPermissions(Build.VERSION.SDK_INT),
+                                                t(lang, "فهرست کتابخانه به اجازهٔ رسانه نیاز دارد. پیوست یک عکس از انتخابگر سیستم این اجازه را نمی‌خواهد.", "Listing the library needs media access. Attaching one photo with the system picker does not."),
                                             )
+                                        }
+                                        "write_settings" -> ui.openWriteSettings()
+                                        "dnd" -> ui.openNotificationPolicySettings()
+                                        "shizuku" -> {
+                                            when (ShizukuBridge.status()) {
+                                                "missing" -> scope.launch {
+                                                    snackbar.showSnackbar(getString(R.string.shizuku_missing))
+                                                }
+                                                "unauthorized" -> ShizukuBridge.requestPermission()
+                                                else -> packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")?.let { startActivity(it) }
+                                            }
                                         }
                                         "accessibility" -> nav.navigate("disclosure")
                                         "notification_listener" -> ui.openNotificationListenerSettings()
@@ -611,6 +685,13 @@ class MainActivity : AppCompatActivity() {
                                         "battery" -> ui.openBatterySettings()
                                     }
                                 },
+                            )
+                        }
+                        composable("privacy") {
+                            PrivacyScreen(
+                                lang = lang,
+                                safGranted = !settings.safTreeUri.isNullOrBlank(),
+                                onBack = { nav.popBackStack() },
                             )
                         }
                         composable("audit") {
@@ -660,13 +741,36 @@ class MainActivity : AppCompatActivity() {
                         },
                     )
                 }
+                if (settingsHelp) {
+                    AlertDialog(
+                        onDismissRequest = { finishPerm(false) },
+                        title = { Text(t(lang, "اجازه دیگر پرسیده نمی‌شود", "The dialog will not show again")) },
+                        text = {
+                            Text(
+                                t(
+                                    lang,
+                                    "اندروید این گفتگو را دوباره نشان نمی‌دهد. اطلاعات برنامه را باز کنید و اجازه را آنجا بدهید.",
+                                    "Android will not show this dialog again. Open app settings and allow it there.",
+                                ),
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = ui::openAppSettings) {
+                                Text(t(lang, "اطلاعات برنامه", "App settings"))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { finishPerm(false) }) { Text(t(lang, "الان نه", "Not now")) }
+                        },
+                    )
+                }
                 if (restrictedHelp) {
                     AlertDialog(
                         onDismissRequest = { finishPerm(false) },
                         title = { Text(t(lang, "تنظیمات محدود", "Restricted settings")) },
                         text = {
                             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                                Text(RestrictedSettings.guide(lang))
+                                DirectedText(RestrictedSettings.guide(lang), rtl = lang.startsWith("fa"))
                                 TextButton(onClick = ui::openAppSettings, modifier = Modifier.fillMaxWidth()) {
                                     Text(t(lang, "باز کردن اطلاعات برنامه", "Open app info"))
                                 }
@@ -732,6 +836,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val ACTION_NEW_CHAT = "app.dastyar.agent.NEW_CHAT"
+        const val ACTION_OPEN_CHAT = "app.dastyar.agent.OPEN_CHAT"
         const val ACTION_VOICE = "app.dastyar.agent.VOICE"
         const val ACTION_ROUTINE = "app.dastyar.agent.ROUTINE"
         private val TOP = setOf("chat", "providers", "connectors", "routines", "settings")

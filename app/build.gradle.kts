@@ -16,8 +16,8 @@ android {
         applicationId = "app.dastyar.agent"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.3.0"
+        versionCode = 6
+        versionName = "0.4.0"
         vectorDrawables.useSupportLibrary = true
         manifestPlaceholders["appAuthRedirectScheme"] = "app.dastyar.agent"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

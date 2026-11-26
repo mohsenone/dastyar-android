@@ -58,6 +58,20 @@ class RestrictedSettingsTest {
     }
 
     @Test
+    fun vendorNotesStayHonestInBothLanguages() {
+        val en = RestrictedSettings.vendorNotes("en")
+        val fa = RestrictedSettings.vendorNotes("fa")
+        assertTrue(en.contains("Samsung"))
+        assertTrue(en.contains("Xiaomi"))
+        assertTrue(en.contains("Huawei"))
+        assertTrue(en.contains("not a promise"))
+        assertTrue(fa.contains("سامسونگ"))
+        assertTrue(fa.contains("شیائومی"))
+        assertTrue(fa.contains("هواوی"))
+        assertTrue(fa.contains("وعده نیست"))
+    }
+
+    @Test
     fun componentListMatchesFlattenedServiceNames() {
         val flat = "com.other/.Other:app.dastyar.agent/app.dastyar.agent.tools.DastyarAccessibilityService"
         assertTrue(ComponentLists.listed(flat, "app.dastyar.agent", PermissionDiagnostics.A11Y_CLASS))

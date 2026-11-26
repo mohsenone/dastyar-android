@@ -23,6 +23,10 @@ On Android 13 and later, a sideloaded APK cannot turn on Accessibility, notifica
 
 Mail can still open in the Gmail app or another email app. WhatsApp opens through `wa.me`. Sending still asks you first. Version 0.2.0 also has an optional Google sign-in under Connectors; see below. It is not a fake login, and some scopes need Google’s own verification.
 
+## 0.4.0
+
+`versionCode` 6. Permissions are the focus. The Permissions screen is a live status list, a setup wizard (Messages, Calls, Contacts, Apps control, Notifications, Files, Location, Camera and microphone, System), and **Fix everything**, which walks only what is still missing. All-files access and Shizuku are optional and are not in that walk. A grant Android will not ask for again opens app settings. Background location is a second step. Persian restricted-settings steps stay right-to-left even when the app is in English. Settings has a Privacy screen. The bottom bar says **Connectors**. A home-screen widget and a quick-settings tile open the current chat. They do not start a new one. Share-in of text and images was already supported. The full permission table is in [CHANGELOG.md](CHANGELOG.md). This build was not run on a phone. There is no `v0.4.0` tag yet.
+
 ## Add a key
 
 Free or trial options are on the first Providers tab. Paid keys are on the second. Every limit line is dated **24 Nov 2026 (3 Azar 1405)**. Check the official page again before you rely on a number.
@@ -49,7 +53,11 @@ Official hosts are often unreachable. Add **Custom / Proxy**, set the base URL o
 
 ## Permissions
 
-Permissions are requested when a tool needs them, or from the Permissions screen, with a short explanation. Deny means the tool returns an error and, on Android 13+, the restricted-settings steps when that is the likely cause. It does not crash.
+Permissions are requested when a tool needs them, or from the Permissions screen, with a short explanation. The first launch does not ask for the whole list. Deny means the tool names the missing access in English and Persian and points at Fix. It does not crash and it does not pretend the call worked. On Android 13+, SMS, call log, accessibility, and notification access can also need Allow restricted settings. If Android will not show the dialog again, the app opens the right settings page instead of launching a dead dialog. Status is read again when you come back.
+
+Vendor skins differ. Samsung can hide the ⋮ item until you try the blocked switch once. Xiaomi / MIUI Autostart and battery saver are separate from Android permissions. Huawei app launch and battery can be locked on their own. That is not a promise that every skin shows the same menu.
+
+The audit table (permission, why, request, deep link, gated tools) is in [CHANGELOG.md](CHANGELOG.md). `READ_PHONE_STATE`, `BLUETOOTH_CONNECT`, and `MODIFY_AUDIO_SETTINGS` were removed. There is no default SMS role and no `USE_EXACT_ALARM`.
 
 - Notifications: a listener can read what is already on the shade. One-time codes and banking-looking texts are redacted before they reach the model. Dismissing a notification asks first.
 - SMS send and phone calls show the recipient and the body, and wait for **Do it**.
@@ -71,7 +79,7 @@ Conversations can be pinned, renamed, and searched. The chat bar opens the saved
 
 ## Connectors (0.2.0)
 
-Open **Links** in the bottom bar, or **Connectors** in Settings. A connector that is off adds no tools. **Connected** means a real sign-in or a successful test, not a placeholder. Secrets stay in the same Keystore vault as LLM keys. They are not Room columns and they are not written to the audit log. The Connectors screen blocks screenshots.
+Open **Connectors** in the bottom bar, or **Connectors** in Settings. A connector that is off adds no tools. **Connected** means a real sign-in or a successful test, not a placeholder. Secrets stay in the same Keystore vault as LLM keys. They are not Room columns and they are not written to the audit log. The Connectors screen blocks screenshots.
 
 | Connector | What you paste | Official page |
 |---|---|---|

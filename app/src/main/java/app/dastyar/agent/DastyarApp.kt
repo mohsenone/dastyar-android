@@ -14,9 +14,11 @@ import app.dastyar.agent.data.Appearance
 import app.dastyar.agent.data.LocaleGate
 import app.dastyar.agent.data.RoutineRepository
 import app.dastyar.agent.data.SettingsStore
+import app.dastyar.agent.connectors.ShizukuBridge
 import app.dastyar.agent.tools.AutomationGate
 import app.dastyar.agent.tools.RoutineSchedulerPort
 import app.dastyar.agent.tools.RoutineTriggers
+import app.dastyar.agent.tools.ShizukuStatusHook
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -38,6 +40,7 @@ class DastyarApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        ShizukuStatusHook.read = { ShizukuBridge.status() }
         val snap = runBlocking {
             withTimeoutOrNull(2_000) {
                 withContext(Dispatchers.IO) { runCatching { settings.current() }.getOrNull() }

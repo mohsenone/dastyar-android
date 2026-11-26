@@ -3,4 +3,15 @@
     <string name="app_name">Dastyar</string>
     <string name="shortcut_new_chat">New chat</string>
     <string name="shortcut_voice">Voice</string>
+    <string name="nav_chat">Chat</string>
+    <string name="nav_providers">Providers</string>
+    <string name="nav_connectors">Connectors</string>
+    <string name="nav_routines">Routines</string>
+    <string name="nav_settings">Settings</string>
+    <string name="widget_title">Dastyar</string>
+    <string name="widget_body">Open the current chat</string>
+    <string name="widget_description">Opens Dastyar on the current chat. It does not start a new chat.</string>
+    <string name="tile_label">Dastyar</string>
+    <string name="tile_subtitle">Open chat</string>
+    <string name="shizuku_missing">Shizuku is not installed. It is optional.</string>
 </resources>

@@ -105,9 +105,21 @@ class AppUiBridge @Inject constructor(
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")),
     )
 
-    override fun openBatterySettings() = launch(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+    override fun openBatterySettings() {
+        val request = Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Uri.parse("package:${context.packageName}"),
+        )
+        if (!tryLaunch(request)) launch(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+    }
 
     override fun openLocationSettings() = launch(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+
+    override fun openWriteSettings() = launch(
+        Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}")),
+    )
+
+    override fun openNotificationPolicySettings() = launch(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
 
     override suspend fun authenticate(title: String): Boolean = authenticator.authenticate(title)
 
@@ -124,7 +136,11 @@ class AppUiBridge @Inject constructor(
     }
 
     private fun launch(intent: Intent) {
+        tryLaunch(intent)
+    }
+
+    private fun tryLaunch(intent: Intent): Boolean {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { context.startActivity(intent) }
+        return runCatching { context.startActivity(intent) }.isSuccess
     }
 }

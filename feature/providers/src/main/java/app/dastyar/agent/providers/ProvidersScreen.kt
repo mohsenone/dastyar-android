@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import app.dastyar.agent.ui.DastyarTopBar
+import app.dastyar.agent.ui.LocalSecureRequest
 import app.dastyar.agent.ui.EmptyState
 import app.dastyar.agent.ui.SectionCard
 import app.dastyar.agent.ui.StatusChip
@@ -134,6 +136,11 @@ fun ProvidersScreen(vm: ProvidersViewModel = hiltViewModel()) {
         )
     }
     val form = state.form
+    val requestSecure = LocalSecureRequest.current
+    DisposableEffect(form != null) {
+        requestSecure(form != null)
+        onDispose { requestSecure(false) }
+    }
     if (form != null) {
         val card = Catalog.cards.first { it.id == form.cardId }
         val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)

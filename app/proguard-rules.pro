@@ -20,6 +20,8 @@
 -keep class app.dastyar.agent.ToolPauseReceiver { *; }
 -keep class app.dastyar.agent.BootReceiver { *; }
 -keep class app.dastyar.agent.SmsTriggerReceiver { *; }
+-keep class app.dastyar.agent.DastyarWidget { *; }
+-keep class app.dastyar.agent.DastyarTileService { *; }
 -keep class net.openid.appauth.** { *; }
 -keep class rikka.shizuku.** { *; }
 -keepclassmembers class rikka.shizuku.Shizuku {

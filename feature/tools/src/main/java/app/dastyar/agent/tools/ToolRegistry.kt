@@ -350,7 +350,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.READ_CONTACTS),
             bi(ctx.lang, "برای جستجوی مخاطبین به اجازه نیاز است.", "Dastyar needs permission to read contacts."),
         )
-        if (!granted) return@tool deny(ctx.lang)
+        if (!granted) return@tool deny(ctx.lang, listOf(Manifest.permission.READ_CONTACTS))
         val query = args.optString("query").trim()
         val uri = if (query.isBlank()) {
             ContactsContract.CommonDataKinds.Phone.CONTENT_URI
@@ -388,7 +388,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.WRITE_CONTACTS, Manifest.permission.READ_CONTACTS),
             bi(ctx.lang, "برای نوشتن مخاطب به اجازه نیاز است.", "Dastyar needs permission to write a contact."),
         )
-        if (!granted) return@tool deny(ctx.lang)
+        if (!granted) return@tool deny(ctx.lang, listOf(Manifest.permission.WRITE_CONTACTS, Manifest.permission.READ_CONTACTS))
         val name = args.optString("name").trim()
         val phone = args.optString("phone").trim()
         if (name.isBlank()) return@tool ToolResult(false, "Missing name")
@@ -425,7 +425,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.READ_CALENDAR),
             bi(ctx.lang, "برای خواندن تقویم به اجازه نیاز است.", "Dastyar needs permission to read the calendar."),
         )
-        if (!granted) return@tool deny(ctx.lang)
+        if (!granted) return@tool deny(ctx.lang, listOf(Manifest.permission.READ_CALENDAR))
         val days = args.optInt("days", 14).coerceIn(1, 60)
         val start = System.currentTimeMillis()
         val end = start + days * 24L * 3600_000L
@@ -461,7 +461,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
             bi(ctx.lang, "برای نوشتن تقویم به اجازه نیاز است.", "Dastyar needs permission to write the calendar."),
         )
-        if (!granted) return@tool deny(ctx.lang)
+        if (!granted) return@tool deny(ctx.lang, listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR))
         val title = args.optString("title").trim()
         val start = args.optLong("startMillis")
         if (title.isBlank() || start <= 0L) return@tool ToolResult(false, "Title and startMillis are required")
@@ -490,7 +490,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.WRITE_CALENDAR),
             bi(ctx.lang, "برای حذف رویداد به اجازه نیاز است.", "Dastyar needs permission to delete a calendar event."),
         )
-        if (!granted) return@tool deny(ctx.lang)
+        if (!granted) return@tool deny(ctx.lang, listOf(Manifest.permission.WRITE_CALENDAR))
         val id = args.optLong("eventId")
         val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id)
         val rows = context.contentResolver.delete(uri, null, null)
@@ -578,7 +578,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.CAMERA),
             bi(ctx.lang, "برای دوربین به اجازه نیاز است.", "Dastyar needs the camera."),
         )
-        if (!granted) return@tool deny(ctx.lang)
+        if (!granted) return@tool deny(ctx.lang, listOf(Manifest.permission.CAMERA))
         val path = ui.takePhoto() ?: return@tool ToolResult(false, "Camera cancelled")
         val send = ui.confirmImage(
             path,
@@ -603,7 +603,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.CAMERA),
             bi(ctx.lang, "برای دوربین به اجازه نیاز است.", "Dastyar needs the camera."),
         )
-        if (!granted) return@tool deny(ctx.lang)
+        if (!granted) return@tool deny(ctx.lang, listOf(Manifest.permission.CAMERA))
         val path = ui.captureVideo() ?: return@tool ToolResult(false, "Video cancelled")
         ToolResult(true, "Video saved at $path")
     }
@@ -625,7 +625,7 @@ class ToolRegistry @Inject constructor(
             listOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION),
             bi(ctx.lang, "برای موقعیت به اجازه نیاز است.", "Dastyar needs location permission."),
         )
-        if (!granted) return@tool deny(ctx.lang)
+        if (!granted) return@tool deny(ctx.lang, listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
         if (args.optBoolean("background")) {
             val bg = if (Build.VERSION.SDK_INT >= 29) {
                 ui.ensurePermissions(
@@ -635,7 +635,7 @@ class ToolRegistry @Inject constructor(
             } else {
                 true
             }
-            if (!bg) return@tool deny(ctx.lang)
+            if (!bg) return@tool deny(ctx.lang, listOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION))
         }
         val fix = withTimeoutOrNull(15_000) { currentLocation() } ?: "Location timed out"
         ToolResult(true, fix)
@@ -1141,7 +1141,8 @@ class ToolRegistry @Inject constructor(
         return ToolResult(false, PermissionMessages.denied(ctx.lang, permissions, Build.VERSION.SDK_INT))
     }
 
-    private fun deny(lang: String) = ToolResult(false, PermissionMessages.denied(lang, emptyList(), Build.VERSION.SDK_INT))
+    private fun deny(lang: String, permissions: Collection<String> = emptyList()) =
+        ToolResult(false, PermissionMessages.denied(lang, permissions, Build.VERSION.SDK_INT))
 
     private fun accessibilityOff(lang: String): String {
         val base = bi(
