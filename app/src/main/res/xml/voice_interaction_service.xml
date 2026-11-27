@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:recognitionService="app.dastyar.agent.DastyarRecognitionService"
+    android:sessionService="app.dastyar.agent.DastyarSessionService"
+    android:settingsActivity="app.dastyar.agent.MainActivity"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="false" />

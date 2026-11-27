@@ -72,7 +72,7 @@
     <string name="perm_why_notifications">Dastyar\'s own notification shows background work. Notification access reads alerts you can already see. Nothing is auto-replied.</string>
     <string name="perm_why_files">A folder you pick is enough for files. All-files access is optional and is not part of Fix everything. Photos can use the system picker without a library grant.</string>
     <string name="perm_why_location">Fine or coarse location first. Background location is a second step, and only if a routine needs it.</string>
-    <string name="perm_why_capture">The camera and microphone are used only when you take a photo, record, or dictate.</string>
+    <string name="perm_why_capture">The camera is used when you take a photo. The microphone is used only when you start a voice conversation.</string>
     <string name="perm_why_system">Exact alarms, battery, usage access, system settings, Do Not Disturb, calendar, and optional Shizuku. Shizuku is not a substitute for the grants above.</string>
     <string name="perm_fix_progress">Step %1$d of %2$d</string>
     <string name="perm_continue_key">Continue: add a key</string>
@@ -87,4 +87,10 @@
     <string name="privacy_confirm_body">Sending a message, email, or call, and deleting or paying, still ask you even when confirmation is set to Auto. An unattended routine is off unless you turn that one routine on.</string>
     <string name="privacy_used_for">Used for</string>
     <string name="privacy_not_logged">Permission diagnostics do not include message text, keys, or tokens.</string>
+    <string name="voice_title">Voice</string>
+    <string name="voice_language_body">Speech recognition and spoken replies follow this choice. Auto uses the app language and asks the phone to detect the language when it can. A spoken request still asks before a message, email, call, delete, or payment.</string>
+    <string name="voice_auto">Auto</string>
+    <string name="voice_fa">فارسی</string>
+    <string name="voice_en">English</string>
+    <string name="assistant_set">Set as default digital assistant</string>
 </resources>

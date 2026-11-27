@@ -7,6 +7,9 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.speech.tts.TextToSpeech
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -21,6 +24,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -44,6 +49,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -58,6 +64,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -107,7 +114,12 @@ import app.dastyar.agent.tools.RiskLevel
 import app.dastyar.agent.ui.ConfirmPanel
 import app.dastyar.agent.ui.DastyarSnackbarHost
 import app.dastyar.agent.ui.DastyarTheme
+import app.dastyar.agent.ui.Space
+import app.dastyar.agent.ui.dastyarBackdrop
 import app.dastyar.agent.ui.t
+import app.dastyar.agent.voice.AssistantRole
+import app.dastyar.agent.voice.AssistantTarget
+import app.dastyar.agent.voice.VoicePhase
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import javax.inject.Inject
@@ -159,7 +171,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun consumeIntent(intent: Intent?) {
-        if (intent == null) return
+        if (intent == null || intent.getBooleanExtra(EXTRA_CONSUMED, false)) return
+        intent.putExtra(EXTRA_CONSUMED, true)
         when (intent.action) {
             Intent.ACTION_SEND -> {
                 val text = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty()
@@ -176,8 +189,12 @@ class MainActivity : AppCompatActivity() {
             ACTION_OPEN_CHAT -> {
                 if (Bootstrap.onboardingDone(this)) routes.value = "chat"
             }
-            ACTION_VOICE -> {
-                chatVm.requestVoice()
+            Intent.ACTION_ASSIST, ACTION_VOICE -> {
+                chatVm.startHandsFree()
+                if (Bootstrap.onboardingDone(this)) routes.value = "chat"
+            }
+            ACTION_VOICE_TURN -> {
+                chatVm.acceptVoiceTurn(intent.getStringExtra(EXTRA_UTTERANCE).orEmpty())
                 if (Bootstrap.onboardingDone(this)) routes.value = "chat"
             }
             ACTION_ROUTINE -> {
@@ -458,27 +475,28 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val start = if (Bootstrap.onboardingDone(this) || settings.onboardingDone) "chat" else "onboarding"
-                val menuLabel = stringResource(R.string.nav_menu)
+                var assistantHeld by remember { mutableStateOf<Boolean?>(null) }
+                LaunchedEffect(epoch) { assistantHeld = readAssistantHeld() }
+                val chatState by chatVm.state.collectAsStateWithLifecycle()
+                Box(Modifier.fillMaxSize().dastyarBackdrop()) {
                 ModalNavigationDrawer(
                     drawerState = drawerState,
                     gesturesEnabled = AppRoutes.base(route) != "onboarding",
                     drawerContent = {
-                        ModalDrawerSheet {
-                            Text(
-                                stringResource(R.string.app_name),
-                                modifier = Modifier.padding(horizontal = 28.dp, vertical = 24.dp),
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                            Text(
-                                menuLabel,
-                                modifier = Modifier.padding(horizontal = 28.dp),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 12.dp))
+                        ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+                            Column(Modifier.fillMaxHeight()) {
+                            Column(Modifier.padding(horizontal = Space.s24, vertical = Space.s24)) {
+                                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
+                                Text(
+                                    stringResource(R.string.drawer_tagline),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             Column(
-                                Modifier.padding(horizontal = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                Modifier.padding(horizontal = Space.s12, vertical = Space.s8),
+                                verticalArrangement = Arrangement.spacedBy(Space.s4),
                             ) {
                                 data class Item(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
                                 val items = listOf(
@@ -498,14 +516,27 @@ class MainActivity : AppCompatActivity() {
                                         icon = { Icon(item.icon, contentDescription = null) },
                                         label = { Text(item.label) },
                                         shape = MaterialTheme.shapes.medium,
+                                        colors = NavigationDrawerItemDefaults.colors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        ),
                                     )
                                 }
+                            }
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                BuildConfig.VERSION_NAME,
+                                modifier = Modifier.padding(Space.s24),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                             }
                         }
                     },
                 ) {
                 Scaffold(
-                    containerColor = MaterialTheme.colorScheme.background,
+                    containerColor = Color.Transparent,
                     snackbarHost = { DastyarSnackbarHost(snackbar) },
                 ) { padding ->
                     NavHost(
@@ -545,7 +576,7 @@ class MainActivity : AppCompatActivity() {
                                 ensureMic = {
                                     ui.ensurePermissions(
                                         listOf(Manifest.permission.RECORD_AUDIO),
-                                        t(lang, "برای شنیدن صدا میکروفون لازم است. اگر موتور گفتار فارسی نباشد، انگلیسی را امتحان کنید.", "Microphone is required to listen. If the phone has no Persian recognizer, try English."),
+                                        t(lang, "میکروفون فقط برای گفتگوی صوتی است و اجازهٔ دیگری را روشن نمی‌کند.", "The microphone is only for voice conversation. It does not turn on anything else."),
                                     )
                                 },
                                 pickImage = {
@@ -578,6 +609,8 @@ class MainActivity : AppCompatActivity() {
                                     }
                                 },
                                 onOpenProviders = { nav.goMenu("providers") },
+                                onInstallTts = ::openTtsInstall,
+                                onMicSettings = ui::openAppSettings,
                             )
                         }
                         composable("providers") { ProvidersScreen(onOpenMenu = openMenu) }
@@ -606,6 +639,8 @@ class MainActivity : AppCompatActivity() {
                                     scope.launch { ui.pickDirectory() }
                                 },
                                 onOpenMenu = openMenu,
+                                assistantStatus = AssistantRole.status(assistantHeld, lang.startsWith("fa")),
+                                onSetAssistant = ::openAssistantSettings,
                             )
                         }
                         composable(
@@ -887,14 +922,63 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             }
+                BackHandler(
+                    enabled = chatState.handsFree || chatState.voicePhase != VoicePhase.Idle || chatState.voiceHint != app.dastyar.agent.voice.VoiceHint.None,
+                ) {
+                    chatVm.stopVoice()
+                }
+                }
         }
         }
+    }
+
+    private fun readAssistantHeld(): Boolean? {
+        if (Build.VERSION.SDK_INT < AssistantRole.MIN_SDK) return null
+        val manager = getSystemService(android.app.role.RoleManager::class.java) ?: return null
+        return runCatching { manager.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT) }.getOrNull()
+    }
+
+    private fun openAssistantSettings() {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= AssistantRole.MIN_SDK) {
+                val manager = getSystemService(android.app.role.RoleManager::class.java)
+                val role = manager?.createRequestRoleIntent(android.app.role.RoleManager.ROLE_ASSISTANT)
+                val resolves = role?.resolveActivity(packageManager) != null
+                if (AssistantRole.select(Build.VERSION.SDK_INT, resolves) == AssistantTarget.RoleRequest && role != null) {
+                    startActivity(role)
+                    return
+                }
+            }
+        }
+        val voice = Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)
+        if (voice.resolveActivity(packageManager) != null) {
+            startActivity(voice)
+            return
+        }
+        runCatching { startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) }
+    }
+
+    private fun openTtsInstall() {
+        val install = Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)
+        if (install.resolveActivity(packageManager) != null) {
+            startActivity(install)
+            return
+        }
+        val engine = Intent("com.android.settings.TTS_SETTINGS")
+        if (engine.resolveActivity(packageManager) != null) {
+            startActivity(engine)
+            return
+        }
+        runCatching { startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)) }
     }
 
     companion object {
         const val ACTION_NEW_CHAT = "app.dastyar.agent.NEW_CHAT"
         const val ACTION_OPEN_CHAT = "app.dastyar.agent.OPEN_CHAT"
         const val ACTION_VOICE = "app.dastyar.agent.VOICE"
+        const val ACTION_VOICE_TURN = "app.dastyar.agent.VOICE_TURN"
+        const val EXTRA_UTTERANCE = "utterance"
+        const val EXTRA_CONSUMED = "dastyar_consumed"
         const val ACTION_ROUTINE = "app.dastyar.agent.ROUTINE"
         private var pendingPhoto: String? = null
         private var pendingVideo: String? = null

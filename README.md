@@ -23,6 +23,14 @@ On Android 13 and later, a sideloaded APK cannot turn on Accessibility, notifica
 
 Mail can still open in the Gmail app or another email app. WhatsApp opens through `wa.me`. Sending still asks you first. Version 0.2.0 also has an optional Google sign-in under Connectors; see below. It is not a fake login, and some scopes need Google’s own verification.
 
+## 0.6.0
+
+`versionCode` 8. The look is the same teal, clay, and paper, drawn tighter: a 48dp top bar (on Chat, no large wordmark), a quiet background wash, distinct chat bubbles, a welcome state, and a drawer with the same five destinations. Light and dark both use the brand palette. Persian stays on Vazirmatn and right to left.
+
+You can talk to Dastyar. The mic in the composer writes one phrase into the field so you can review it, then send. Hands-free listens, sends that turn, speaks the reply you can already see, and listens again until you stop. Language in Settings is Auto, Persian (`fa-IR`), or English (`en-US`). Auto follows the app language. If a Persian voice is not installed, the reply stays on screen and the app points at system text-to-speech data. It does not silently switch that reply to English. When the phone has no recognizer, and the saved key is official OpenAI or another OpenAI-compatible base that actually answers, Dastyar may use that provider’s audio routes and says so. Groq, OpenRouter, Gemini, and the other built-in hosts are not treated as voice engines. The microphone is requested only when you start voice.
+
+Settings can set Dastyar as the default digital assistant (`ROLE_ASSISTANT` on Android 10+, otherwise the system voice-input screen). A long-press of Home is meant to open Dastyar’s voice overlay. The in-app recognizer service is only so the system can list the app. Dictation uses the phone’s speech recognizer. This build was not installed on a phone or an emulator, and the assist gesture was not tried here. There is no `v0.6.0` tag yet.
+
 ## 0.5.0
 
 `versionCode` 7. Chat is the home screen and fills the screen. The old bottom bar (Chat, Providers, Connectors, Routines, Settings) is a menu drawer opened from the menu icon. In Persian the drawer is right to left. Connectors keeps that name (اتصال‌ها). Opening Connectors no longer builds the Google sign-in service up front: AppAuth 0.11.1 can throw when a real phone’s browser has a null `PackageInfo.signatures` array, which a fresh emulator often does not. A broken connector card and a corrupt connector file stay on screen with a retry, and they do not wipe the vault or chats. Room is still version 3. There is no `v0.5.0` tag yet. This build was not run on a phone or an emulator.
@@ -77,7 +85,7 @@ The audit log in Settings can be filtered, exported, and deleted. It stores a sh
 
 ## Voice, memory, offline models
 
-Speech recognition and text-to-speech use the engines installed on the phone, for Persian and English when those voices exist. Stop speech from the chat bar. If Persian recognition is missing, the error says so and English is the fallback for speech output.
+Speech recognition and text-to-speech use the engines installed on the phone. Settings chooses Auto, Persian, or English. One tap of the mic fills the composer. Hands-free speaks the visible reply and keeps listening until you stop. If Persian speech data is missing, the reply stays as text and a button opens the system install-speech screen. English is not used as a silent stand-in for a missing Persian voice. A provider audio fallback, when it runs, uses the key you already saved and is labeled in the voice stage.
 
 Conversations can be pinned, renamed, and searched. The chat bar opens the saved providers and that provider’s model list. Free models are first. Refresh asks the provider’s live catalog and keeps the last list if the network fails. Anthropic uses its models endpoint when the key can call it, and an offline list when it cannot. GitHub Models stays discontinued and is not fetched. Choosing a model applies to this chat. Save as app default does not rewrite chats that already stored their own model. Replies render headings, lists, links, inline code, and fenced code blocks with a language label. Tool calls sit in a card. A typing indicator shows while a reply is still empty. Saved facts are a list the model can read and write. This version does not bundle an embedding model or Gemini Nano / a GGUF file. Settings explains that, and you can still save facts by hand.
 

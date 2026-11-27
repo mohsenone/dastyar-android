@@ -38,7 +38,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
@@ -51,6 +54,32 @@ import androidx.compose.ui.unit.dp
 
 /** Activity sets this so a secret field can mark the window secure without blanking a whole list. */
 val LocalSecureRequest = staticCompositionLocalOf<(Boolean) -> Unit> { { } }
+
+/** Compact chrome. The chat transcript starts under a bar no taller than this. */
+object ChromeMetrics {
+    const val TOP_BAR_DP = 48
+    val topBar = TOP_BAR_DP.dp
+}
+
+@Composable
+fun dastyarBackdropBrush(): Brush {
+    val scheme = MaterialTheme.colorScheme
+    val dark = scheme.background.luminance() < 0.4f
+    val glow = scheme.primary.copy(alpha = if (dark) 0.16f else 0.09f)
+    val wash = scheme.secondary.copy(alpha = if (dark) 0.05f else 0.04f)
+    return Brush.verticalGradient(
+        0f to glow,
+        0.22f to scheme.background,
+        0.72f to scheme.background,
+        1f to wash,
+    )
+}
+
+@Composable
+fun Modifier.dastyarBackdrop(): Modifier {
+    val brush = dastyarBackdropBrush()
+    return this.drawBehind { drawRect(brush) }
+}
 
 fun t(lang: String, fa: String, en: String): String = if (lang.startsWith("fa")) fa else en
 
@@ -98,15 +127,27 @@ fun DastyarTopBar(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     TopAppBar(
-        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        modifier = modifier,
+        title = {
+            if (title.isNotBlank()) {
+                Text(
+                    title,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+            }
+        },
+        modifier = modifier.heightIn(max = ChromeMetrics.topBar),
+        expandedHeight = ChromeMetrics.topBar,
         navigationIcon = { navigation?.invoke() },
         actions = actions,
         windowInsets = WindowInsets(0, 0, 0, 0),
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = Color.Transparent,
+            scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
             titleContentColor = MaterialTheme.colorScheme.onSurface,
+            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+            actionIconContentColor = MaterialTheme.colorScheme.onSurface,
         ),
     )
 }
@@ -154,7 +195,7 @@ fun SectionCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
@@ -219,11 +260,15 @@ fun EmptyState(
         verticalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
         if (icon != null) {
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+            ) {
                 Icon(
                     icon,
                     contentDescription = null,
-                    modifier = Modifier.padding(Space.s16).size(32.dp),
+                    modifier = Modifier.padding(Space.s16).size(28.dp),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
             }

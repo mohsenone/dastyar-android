@@ -142,6 +142,8 @@ fun SettingsScreen(
     onPickFolder: () -> Unit,
     onConnectors: () -> Unit,
     onOpenMenu: () -> Unit,
+    assistantStatus: String = "",
+    onSetAssistant: () -> Unit = {},
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
@@ -168,6 +170,19 @@ fun SettingsScreen(
             FilterChip(selected = state.colorMode == Appearance.DYNAMIC, onClick = { vm.setColorMode(Appearance.DYNAMIC) }, label = { Text(stringResource(R.string.color_dynamic)) })
         }
         Text(stringResource(R.string.color_dynamic_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SectionHeader(stringResource(R.string.voice_title))
+        Text(stringResource(R.string.voice_language_body), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+            FilterChip(selected = state.voiceLanguage == "auto", onClick = { vm.setVoiceLanguage("auto") }, label = { Text(stringResource(R.string.voice_auto)) })
+            FilterChip(selected = state.voiceLanguage == "fa", onClick = { vm.setVoiceLanguage("fa") }, label = { Text(stringResource(R.string.voice_fa)) })
+            FilterChip(selected = state.voiceLanguage == "en", onClick = { vm.setVoiceLanguage("en") }, label = { Text(stringResource(R.string.voice_en)) })
+        }
+        if (assistantStatus.isNotBlank()) {
+            Text(assistantStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Button(onClick = onSetAssistant, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.assistant_set))
+        }
         SettingsRow(title = t(lang, "توقف همهٔ ابزارها", "Pause all tools")) {
             Switch(checked = state.paused, onCheckedChange = vm::setPaused)
         }

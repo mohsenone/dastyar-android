@@ -29,3 +29,7 @@
 }
 -keep class app.dastyar.agent.RoutineKeepAliveWorker { *; }
 -keep class app.dastyar.agent.MainActivity { *; }
+-keep class app.dastyar.agent.DastyarVoiceInteractionService { *; }
+-keep class app.dastyar.agent.DastyarSessionService { *; }
+-keep class app.dastyar.agent.DastyarRecognitionService { *; }
+-keep class app.dastyar.agent.DastyarSession { *; }

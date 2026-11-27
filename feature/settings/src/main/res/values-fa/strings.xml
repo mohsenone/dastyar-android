@@ -72,7 +72,7 @@
     <string name="perm_why_notifications">اعلان خود دستیار کار پس‌زمینه را نشان می‌دهد. دسترسی به اعلان همان هشدارهایی را می‌خواند که خودتان می‌بینید. پاسخ خودکار نیست.</string>
     <string name="perm_why_files">پوشه‌ای که انتخاب می‌کنید برای فایل کافی است. دسترسی به همهٔ فایل‌ها اختیاری است و در رفع همه نیست. عکس را می‌توان با انتخابگر سیستم بدون اجازهٔ کل کتابخانه پیوست کرد.</string>
     <string name="perm_why_location">اول موقعیت دقیق یا تقریبی. موقعیت پس‌زمینه گام دوم است و فقط اگر روالی لازم داشته باشد.</string>
-    <string name="perm_why_capture">دوربین و میکروفون فقط وقتی عکس، فیلم یا گفتار می‌خواهید به کار می‌روند.</string>
+    <string name="perm_why_capture">دوربین وقتی است که عکس می‌گیرید. میکروفون فقط وقتی است که گفتگوی صوتی را شروع می‌کنید.</string>
     <string name="perm_why_system">زنگ دقیق، باتری، آمار استفاده، تنظیمات سیستم، مزاحم نشوید، تقویم، و شیزوکوی اختیاری. شیزوکو جای اجازه‌های بالا را نمی‌گیرد.</string>
     <string name="perm_fix_progress">گام %1$d از %2$d</string>
     <string name="perm_continue_key">ادامه: افزودن کلید</string>
@@ -87,4 +87,10 @@
     <string name="privacy_confirm_body">فرستادن پیام، ایمیل یا تماس، و حذف یا پرداخت، حتی در حالت خودکار هم می‌پرسند. روالِ بدون پرسش خاموش است مگر همان یک روال را خودتان روشن کنید.</string>
     <string name="privacy_used_for">به چه کار می‌آید</string>
     <string name="privacy_not_logged">گزارش اجازه‌ها متن پیام، کلید یا توکن را ندارد.</string>
+    <string name="voice_title">صدا</string>
+    <string name="voice_language_body">تشخیص گفتار و خواندن پاسخ از این انتخاب پیروی می‌کند. خودکار زبان برنامه را می‌گیرد و اگر گوشی بتواند، زبان را هم تشخیص می‌دهد. درخواستِ گفته‌شده هم پیش از پیام، ایمیل، تماس، حذف یا پرداخت تأیید می‌خواهد.</string>
+    <string name="voice_auto">خودکار</string>
+    <string name="voice_fa">فارسی</string>
+    <string name="voice_en">English</string>
+    <string name="assistant_set">تنظیم به عنوان دستیار دیجیتال پیش‌فرض</string>
 </resources>

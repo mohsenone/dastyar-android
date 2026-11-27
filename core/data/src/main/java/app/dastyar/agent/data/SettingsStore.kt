@@ -31,6 +31,8 @@ data class SettingsSnapshot(
     val themeMode: String = Appearance.SYSTEM,
     /** brand or dynamic. */
     val colorMode: String = Appearance.BRAND,
+    /** auto, fa, or en. Auto follows the app language. */
+    val voiceLanguage: String = VoicePreference.AUTO,
 )
 
 @Singleton
@@ -75,6 +77,8 @@ class SettingsStore @Inject constructor(
 
     suspend fun setColorMode(mode: String) = edit { it[COLOR] = Appearance.color(mode) }
 
+    suspend fun setVoiceLanguage(language: String) = edit { it[VOICE] = VoicePreference.normalize(language) }
+
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         store.edit(block)
     }
@@ -93,6 +97,20 @@ class SettingsStore @Inject constructor(
         val TOOLS = stringPreferencesKey("disabled_tools")
         val THEME = stringPreferencesKey("theme_mode")
         val COLOR = stringPreferencesKey("color_mode")
+        val VOICE = stringPreferencesKey("voice_language")
+    }
+}
+
+object VoicePreference {
+    const val AUTO = "auto"
+    const val FA = "fa"
+    const val EN = "en"
+
+    fun normalize(raw: String?): String = when {
+        raw.isNullOrBlank() || raw.equals(AUTO, ignoreCase = true) -> AUTO
+        raw.startsWith(FA, ignoreCase = true) -> FA
+        raw.startsWith(EN, ignoreCase = true) -> EN
+        else -> AUTO
     }
 }
 
@@ -110,4 +128,5 @@ internal fun Preferences.toSettingsSnapshot() = SettingsSnapshot(
     disabledTools = this[stringPreferencesKey("disabled_tools")] ?: "",
     themeMode = Appearance.theme(this[stringPreferencesKey("theme_mode")]),
     colorMode = Appearance.color(this[stringPreferencesKey("color_mode")]),
+    voiceLanguage = VoicePreference.normalize(this[stringPreferencesKey("voice_language")]),
 )

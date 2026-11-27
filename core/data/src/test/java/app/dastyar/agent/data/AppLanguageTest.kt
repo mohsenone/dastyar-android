@@ -46,6 +46,7 @@ class AppLanguageTest {
         assertEquals(AppLanguage.ENGLISH, fresh.language)
         assertEquals(Appearance.SYSTEM, fresh.themeMode)
         assertEquals(Appearance.BRAND, fresh.colorMode)
+        assertEquals(VoicePreference.AUTO, fresh.voiceLanguage)
 
         val persian = mutablePreferencesOf(stringPreferencesKey("language") to "fa").toSettingsSnapshot()
         assertEquals(AppLanguage.PERSIAN, persian.language)

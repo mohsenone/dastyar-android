@@ -5,6 +5,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
 
 internal val Jakarta = FontFamily(
@@ -19,20 +20,33 @@ internal val Vazir = FontFamily(
     Font(R.font.vazirmatn_bold, FontWeight.Bold),
 )
 
+private val ScriptLine = LineHeightStyle(
+    alignment = LineHeightStyle.Alignment.Center,
+    trim = LineHeightStyle.Trim.None,
+)
+
+private fun script(family: FontFamily, weight: FontWeight, size: Int, line: Int) = TextStyle(
+    fontFamily = family,
+    fontWeight = weight,
+    fontSize = size.sp,
+    lineHeight = line.sp,
+    lineHeightStyle = ScriptLine,
+)
+
 internal fun dastyarTypography(family: FontFamily) = Typography(
-    displayLarge = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 48.sp, lineHeight = 56.sp),
-    displayMedium = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 40.sp, lineHeight = 48.sp),
-    displaySmall = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 40.sp),
-    headlineLarge = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 30.sp, lineHeight = 38.sp),
-    headlineMedium = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 26.sp, lineHeight = 34.sp),
-    headlineSmall = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 30.sp),
-    titleLarge = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 20.sp, lineHeight = 28.sp),
-    titleMedium = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 24.sp),
-    titleSmall = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp),
-    bodyLarge = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 26.sp),
-    bodyMedium = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 22.sp),
-    bodySmall = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 18.sp),
-    labelLarge = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp),
-    labelMedium = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp),
-    labelSmall = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 16.sp),
+    displayLarge = script(family, FontWeight.Bold, 48, 56),
+    displayMedium = script(family, FontWeight.Bold, 40, 48),
+    displaySmall = script(family, FontWeight.Bold, 32, 40),
+    headlineLarge = script(family, FontWeight.Bold, 30, 38),
+    headlineMedium = script(family, FontWeight.Bold, 26, 34),
+    headlineSmall = script(family, FontWeight.Bold, 22, 30),
+    titleLarge = script(family, FontWeight.Medium, 20, 28),
+    titleMedium = script(family, FontWeight.Medium, 16, 24),
+    titleSmall = script(family, FontWeight.Medium, 14, 20),
+    bodyLarge = script(family, FontWeight.Normal, 16, 26),
+    bodyMedium = script(family, FontWeight.Normal, 14, 22),
+    bodySmall = script(family, FontWeight.Normal, 12, 18),
+    labelLarge = script(family, FontWeight.Medium, 14, 20),
+    labelMedium = script(family, FontWeight.Medium, 12, 16),
+    labelSmall = script(family, FontWeight.Medium, 11, 16),
 )

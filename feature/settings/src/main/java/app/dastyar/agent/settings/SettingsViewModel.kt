@@ -52,6 +52,7 @@ data class SettingsUi(
     val onboardingDone: Boolean = false,
     val a11yDisclosed: Boolean = false,
     val confirmMode: String = "sensitive",
+    val voiceLanguage: String = "auto",
     val disabledCategories: String = "",
     val disabledTools: String = "",
 )
@@ -91,6 +92,7 @@ class SettingsViewModel @Inject constructor(
                         onboardingDone = snap.onboardingDone,
                         a11yDisclosed = snap.a11yDisclosed,
                         confirmMode = snap.confirmMode,
+                        voiceLanguage = snap.voiceLanguage,
                         disabledCategories = snap.disabledCategories,
                         disabledTools = if (it.disabledTools == snap.disabledTools || it.disabledTools.isEmpty()) snap.disabledTools else it.disabledTools,
                         hardware = runCatching { vault.hardwareBacked() }.getOrDefault(false),
@@ -121,6 +123,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setColorMode(mode: String) {
         viewModelScope.launch { settings.setColorMode(mode) }
+    }
+
+    fun setVoiceLanguage(language: String) {
+        viewModelScope.launch { settings.setVoiceLanguage(language) }
     }
 
     fun finishOnboarding() {
