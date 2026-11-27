@@ -246,3 +246,37 @@ Unit tests at `fba63b9`: 76 debug unit tests, 0 failures, 14 suites. Release-var
 - Signed APK: `/tmp/dastyar-0.6.0.apk` (3,308,667 bytes). SHA-256 `c275514db53bd1566fb456c7b2f22b8a53cf7625fe18b28948868e7eb8a07a17`. `apksigner verify` succeeded with APK Signature Scheme v2. Certificate DN `CN=Dastyar, OU=Mobile, O=Dastyar, C=IR`. SHA-1 `f2eab974ba099eb25a0b970d156f88aebf5fd950`. SHA-256 `9796073f30fec3e58e3fb9931103815b0205caa4060a4adc53fbc2b9ab19e453`. Same certificate as v0.5.0. `/tmp/dastyar-0.5.0.apk` was left in place.
 - `aapt dump badging` reports package `app.dastyar.agent`, `versionCode` 8, `versionName` 0.6.0, minSdk 26, targetSdk 35, compileSdk 35.
 - This server has no emulator. The APK was not installed here. The assistant picker and the assist gesture were not verified. Nothing was sent to Telegram.
+
+## 2026-11-27 — v0.6.0 publish
+
+The section above is the pre-tag local build. This follow-up does not move `v0.6.0`.
+
+### Publish
+
+- Commit tagged: `5cb4de5` — Ship Dastyar 0.6.0 with a premium look, voice conversation, and default-assistant support. That commit is `versionCode` 8 and `versionName` 0.6.0.
+- Annotated tag `v0.6.0` points at `5cb4de534e88a04ad8cceee85733f1a1d0db95c5` (tag object `9c8fd545477ef9f7db44019f0d938e7c9915a655`). It was not force-pushed. This docs commit does not move the tag.
+- Release: https://github.com/mohsenone/dastyar-android/releases/tag/v0.6.0
+- APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.6.0/app-release.apk (3,308,667 bytes, state uploaded). A locally signed APK of the same size was attached first so the release was not empty. Workflow run [45976612852](https://github.com/mohsenone/dastyar-android/actions/runs/45976612852) then replaced that asset with its own `app-release.apk`. Both files are 3,308,667 bytes and the same signing certificate. Zip SHA-256 differs because Actions rebuilt the APK from the tag: local (the file the supervisor installed) `c275514db53bd1566fb456c7b2f22b8a53cf7625fe18b28948868e7eb8a07a17`, release asset `0ab617366c01c267d76144e14fd69b1cbf379208d9e049431ce9f854c5f95ff2`.
+- `aapt dump badging` on the release asset reports package `app.dastyar.agent`, `versionCode` 8, `versionName` 0.6.0, compileSdk 35, minSdk 26, targetSdk 35. `apksigner verify` succeeded with APK Signature Scheme v2. Certificate DN is `CN=Dastyar, OU=Mobile, O=Dastyar, C=IR`. SHA-1 `f2eab974ba099eb25a0b970d156f88aebf5fd950`. SHA-256 `9796073f30fec3e58e3fb9931103815b0205caa4060a4adc53fbc2b9ab19e453`. Same certificate as v0.5.0 and the local 0.6.0 APK.
+- Nothing was sent to Telegram from this machine. The tag workflow’s existing Telegram step ran and logged `TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is absent. Skipping Telegram upload.` This pass did not call the Telegram API itself.
+- Actions replaced the release body with the generic workflow text (`Dastyar (دستیار) — on-device AI agent`, plus a generated Full Changelog link). The bilingual notes were written back with `gh release edit` after the workflow finished. The asset stayed `app-release.apk` at 3,308,667 bytes.
+
+### Emulator QA
+
+A supervisor installed the local APK (`c275514d…`, built from `5cb4de5`) on an official Android SDK emulator: API 35 `google_apis` x86_64, Pixel 6 profile, headless TCG with SwiftShader. KVM is not usable on that host. It was not tested on a physical phone.
+
+Fresh install: onboarding, English light chat (compact app bar, welcome state, no bottom tabs), the drawer, Connectors (the process stayed alive; the 0.5.0 crash did not return), the hands-free stage, Settings (Voice Auto / فارسی / English and the default-assistant button), dark theme, then Persian and right-to-left (settings, the drawer, chat, and the voice stage). No `AndroidRuntime` FATAL for `app.dastyar.agent`.
+
+`cmd role add-role-holder android.app.role.ASSISTANT app.dastyar.agent` succeeded. The holder became `app.dastyar.agent`. It had been Google. Android Settings → Voice input / Digital assistant app showed **Default digital assistant app: Dastyar**. `KEYCODE_ASSIST` opened a `VoiceInteractionSession` overlay (Continue in chat / Stop). The process stayed alive.
+
+The emulator has no real microphone and no working `SpeechRecognizer`. The voice UI correctly showed “Speech recognition stopped / is not available on this device” and a Persian hint that on-device recognition depends on an engine installed on the phone. A live talk-and-hear loop, Persian TTS playback, and the provider-audio fallback were not exercised (no API key, no real microphone).
+
+The first automated tap of the in-app “Set as default digital assistant” button did not capture a system role dialog. The screen stayed on Settings. The role was then set with `cmd role` and confirmed in system settings. The assist overlay’s chrome was English while the app language was Persian. The in-app Persian voice stage was correctly right to left.
+
+The first launch on this TCG emulator can show “Dastyar isn't responding”. Wait dismissed it. After `cmd package compile -m speed`, the walk had no FATAL. This may not appear on a real phone.
+
+The home-screen widget, the quick-settings tile, and share-in were not re-tested. The full v0.4.0 grant and revoke permission matrix was not re-run.
+
+Chat still fills the screen. There is no bottom tab bar. The top app bar is a compact 48dp row: menu, chats, a one-line model chip, hands-free, and new chat. English uses Plus Jakarta Sans. Persian uses Vazirmatn and is right to left. v0.5.0 Connectors crash fixes and v0.4.0 permission behavior are unchanged.
+
+Unit tests at `5cb4de5`: 88 debug unit tests, 0 failures, 18 suites (including the 0.5.0 crash and migration suites). Release-variant unit tests were not re-run. There are no instrumented tests. The build server has no emulator.
