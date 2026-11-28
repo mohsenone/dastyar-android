@@ -305,3 +305,39 @@ If there is still no usable engine, a short WAV goes to a saved key that exposes
 - Signed APK: `/tmp/dastyar-0.6.1.apk` (3,326,127 bytes). SHA-256 `524f2d7a6b44bc02e3bdbcb23eaf06d3c24e768e5ba66ef7ca9f578f16376212`. `apksigner verify` succeeded with APK Signature Scheme v2. Certificate DN `CN=Dastyar, OU=Mobile, O=Dastyar, C=IR`. SHA-1 `f2eab974ba099eb25a0b970d156f88aebf5fd950`. SHA-256 `9796073f30fec3e58e3fb9931103815b0205caa4060a4adc53fbc2b9ab19e453`. Same certificate as v0.6.0. `/tmp/dastyar-0.6.0.apk` was left in place.
 - `aapt dump badging` reports package `app.dastyar.agent`, `versionCode` 9, `versionName` 0.6.1, minSdk 26, targetSdk 35, compileSdk 35.
 - This server has no emulator. The APK was not installed here. Nothing was sent to Telegram.
+
+## 2026-11-28 — v0.6.1 publish
+
+The section above is the pre-tag local build. This follow-up does not move `v0.6.1`.
+
+### Publish
+
+- Commit tagged: `da41686` — Fix Dastyar 0.6.1 back navigation, stuck voice errors, and speech pipeline. That commit is `versionCode` 9 and `versionName` 0.6.1.
+- Annotated tag `v0.6.1` points at `da416866f371291750a95d8d2ea7fd7561003635` (tag object `4ea9991d7650e13629ed575dfceab0c681ee47cc`). It was not force-pushed. This docs commit does not move the tag.
+- Release: https://github.com/mohsenone/dastyar-android/releases/tag/v0.6.1
+- APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.6.1/app-release.apk (3,326,127 bytes, state uploaded). A locally signed APK of the same size was attached first so the release was not empty. Workflow run [46137041677](https://github.com/mohsenone/dastyar-android/actions/runs/46137041677) then replaced that asset with its own `app-release.apk`. Both files are 3,326,127 bytes and the same signing certificate. Zip SHA-256 differs because Actions rebuilt the APK from the tag: local (the file the supervisor installed) `524f2d7a6b44bc02e3bdbcb23eaf06d3c24e768e5ba66ef7ca9f578f16376212`, release asset `c38528dfc3492c1eb589583e34057272fc7707c1219865d04bad0b2a52769e57`.
+- `aapt dump badging` on the release asset reports package `app.dastyar.agent`, `versionCode` 9, `versionName` 0.6.1, compileSdk 35, minSdk 26, targetSdk 35. `apksigner verify` succeeded with APK Signature Scheme v2. Certificate DN is `CN=Dastyar, OU=Mobile, O=Dastyar, C=IR`. SHA-1 `f2eab974ba099eb25a0b970d156f88aebf5fd950`. SHA-256 `9796073f30fec3e58e3fb9931103815b0205caa4060a4adc53fbc2b9ab19e453`. Same certificate as v0.6.0 and the local 0.6.1 APK.
+- Nothing was sent to Telegram from this machine. The tag workflow’s existing Telegram step ran and logged `TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is absent. Skipping Telegram upload.` This pass did not call the Telegram API itself.
+- Actions replaced the release body with the generic workflow text (`Dastyar (دستیار) — on-device AI agent`, plus a generated Full Changelog link). The bilingual notes were written back with `gh release edit` after the workflow finished. The asset stayed `app-release.apk` at 3,326,127 bytes.
+
+### Emulator QA
+
+A supervisor installed the local APK (`524f2d7a…`, built from `da41686`, an upgrade from official 0.6.0) on an official Android SDK emulator: API 35 `google_apis` x86_64, Pixel 6 profile, headless TCG with SwiftShader. KVM is not usable on that host. It was not tested on a physical phone. Package `app.dastyar.agent`, `versionCode` 9, `versionName` 0.6.1, same signing certificate.
+
+On a Persian (`fa`) profile: compact chat (hamburger on the right, no back arrow). Routines, Settings, and Connectors each showed an RTL-mirrored up arrow in the compact top bar. System Back from Routines returned to Chat. System Back from Settings and Connectors left the process alive and did not exit the app.
+
+Settings showed Voice diagnostics: system recognizer yes, on-device recognizer yes, TTS engine “Speech Recognition and Synthesis from Google”, Persian voice not installed, English voice installed, microphone granted.
+
+No `AndroidRuntime` FATAL for `app.dastyar.agent` during the walk. Connectors did not crash.
+
+This TCG emulator often shows “Pixel Launcher / System UI / Process system isn't responding”. Wait dismissed those host ANRs. They are not a product crash.
+
+A dedicated Providers-screen screenshot was missed (the drawer was captured instead). Providers uses the same back-arrow wiring as the other sections but was not visually confirmed on this pass.
+
+The emulator has no reliable live microphone. A hands-free error-dismiss screenshot was blocked by a Process-system ANR, so auto-dismiss of a voice error was not visually re-checked on this pass (it is covered by unit tests and the 4.5s / banner behavior in the code). A live talk-and-hear loop, spoken TTS of a model reply, and the provider-transcription fallback were not exercised (no API key on the emulator, no real mic). TTS invocation was not confirmed in logcat.
+
+The widget, the quick-settings tile, share-in, and the default-assistant role were not re-tested in this patch.
+
+The 0.6.0 look, the default-assistant role, the v0.5.0 Connectors crash fixes, and the v0.4.0 permission behavior are unchanged. English is the default. Stored `fa` stays Persian.
+
+Unit tests at `da41686`: 99 debug and 99 release unit tests, 0 failures, 20 suites (including the 0.5.0 crash/migration suites and new nav / pipeline / diagnostics tests). No instrumented tests. The build server has no emulator.

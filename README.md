@@ -25,7 +25,7 @@ Mail can still open in the Gmail app or another email app. WhatsApp opens throug
 
 ## 0.6.1
 
-`versionCode` 9. Non-chat screens have an up arrow, and system Back returns to the previous screen or to Chat. It closes an open drawer or the voice stage before it leaves. A voice error stays a few seconds, then the stage returns to listening or a short banner you can dismiss. If this phone has no usable recognizer, a saved Groq or OpenAI key can transcribe a short recording. The stage says which path is on. Settings includes Voice diagnostics. Groq is not used to speak the reply, and there is no free voice plan. This build was not installed on a phone or an emulator. There is no `v0.6.1` tag yet.
+`versionCode` 9. Non-chat screens have an up arrow, and system Back returns to the previous screen or to Chat. It closes an open drawer or the voice stage before it leaves. A voice error stays a few seconds, then the stage returns to listening or a short banner you can dismiss. If this phone has no usable recognizer, a saved Groq or OpenAI key can transcribe a short recording. The stage says which path is on. Settings includes Voice diagnostics. Groq is not used to speak the reply, and there is no free voice plan. Tagged [`v0.6.1`](https://github.com/mohsenone/dastyar-android/releases/tag/v0.6.1). A supervisor upgraded official 0.6.0 on an API 35 emulator and checked Persian back navigation, Connectors, and Voice diagnostics. It was not tested on a physical phone. A live microphone loop, spoken replies, and provider transcription were not exercised. Details are in [BUILD_LOG.md](BUILD_LOG.md).
 
 ## 0.6.0
 

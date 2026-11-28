@@ -2,7 +2,7 @@
 
 ## 0.6.1 — 2026-11-28
 
-`versionCode` 9, `versionName` 0.6.1. No tag and no GitHub Release. This server has no emulator and did not install the APK. SpeechRecognizer and TextToSpeech were not run here.
+`versionCode` 9, `versionName` 0.6.1. Tagged `v0.6.1` on `da41686`. Release: https://github.com/mohsenone/dastyar-android/releases/tag/v0.6.1. APK: https://github.com/mohsenone/dastyar-android/releases/download/v0.6.1/app-release.apk (3,326,127 bytes). A supervisor installed the local APK on an API 35 emulator; the build server did not. SpeechRecognizer and TextToSpeech were not run here, and a live talk-and-hear loop was not exercised. See BUILD_LOG.md.
 
 English
 
