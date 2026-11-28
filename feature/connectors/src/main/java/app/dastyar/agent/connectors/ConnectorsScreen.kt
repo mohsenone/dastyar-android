@@ -22,7 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.res.stringResource
 import app.dastyar.agent.connectors.R
-import app.dastyar.agent.ui.MenuNavigation
+import app.dastyar.agent.ui.BackNavigation
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -57,7 +57,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ConnectorsScreen(
     onPermissions: () -> Unit,
-    onOpenMenu: () -> Unit,
+    onBack: () -> Unit,
     vm: ConnectorsViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -81,7 +81,7 @@ fun ConnectorsScreen(
     ) {
         DastyarTopBar(
             stringResource(R.string.connector_title),
-            navigation = { MenuNavigation(onOpenMenu) },
+            navigation = { BackNavigation(onBack) },
         )
         if (state.loadError || state.unreadable) {
             SectionCard(

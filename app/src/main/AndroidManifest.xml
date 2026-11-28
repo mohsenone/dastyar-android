@@ -57,6 +57,15 @@
             <action android:name="android.speech.RecognitionService" />
         </intent>
         <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <package android:name="com.google.android.googlequicksearchbox" />
+        <package android:name="com.google.android.tts" />
+        <package android:name="com.google.android.as" />
+        <package android:name="com.samsung.android.bixby.agent" />
+        <package android:name="com.xiaomi.mibrain.speech" />
+        <package android:name="com.miui.voiceassist" />
+        <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
         </intent>
@@ -117,6 +126,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:enableOnBackInvokedCallback="true"
             android:exported="true"
             android:launchMode="singleTask"
             android:theme="@style/Theme.Dastyar.Splash"

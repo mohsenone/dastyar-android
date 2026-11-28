@@ -35,7 +35,6 @@ import app.dastyar.agent.data.AppLanguage
 import app.dastyar.agent.data.Appearance
 import app.dastyar.agent.ui.BackNavigation
 import app.dastyar.agent.ui.DastyarTopBar
-import app.dastyar.agent.ui.MenuNavigation
 import app.dastyar.agent.ui.EmptyState
 import app.dastyar.agent.ui.PrimaryButton
 import app.dastyar.agent.ui.SecondaryButton
@@ -141,9 +140,11 @@ fun SettingsScreen(
     onPrivacy: () -> Unit,
     onPickFolder: () -> Unit,
     onConnectors: () -> Unit,
-    onOpenMenu: () -> Unit,
+    onBack: () -> Unit,
     assistantStatus: String = "",
     onSetAssistant: () -> Unit = {},
+    voiceDiagnosticsTitle: String = "",
+    voiceDiagnosticsLines: List<String> = emptyList(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
@@ -151,7 +152,7 @@ fun SettingsScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        DastyarTopBar(stringResource(R.string.settings_title), navigation = { MenuNavigation(onOpenMenu) })
+        DastyarTopBar(stringResource(R.string.settings_title), navigation = { BackNavigation(onBack) })
         SectionHeader(stringResource(R.string.onboarding_language))
         LanguageChips(state.languagePref) { code ->
             onLanguage(code)
@@ -176,6 +177,12 @@ fun SettingsScreen(
             FilterChip(selected = state.voiceLanguage == "auto", onClick = { vm.setVoiceLanguage("auto") }, label = { Text(stringResource(R.string.voice_auto)) })
             FilterChip(selected = state.voiceLanguage == "fa", onClick = { vm.setVoiceLanguage("fa") }, label = { Text(stringResource(R.string.voice_fa)) })
             FilterChip(selected = state.voiceLanguage == "en", onClick = { vm.setVoiceLanguage("en") }, label = { Text(stringResource(R.string.voice_en)) })
+        }
+        if (voiceDiagnosticsTitle.isNotBlank()) {
+            SectionHeader(voiceDiagnosticsTitle)
+            voiceDiagnosticsLines.forEach { line ->
+                Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         if (assistantStatus.isNotBlank()) {
             Text(assistantStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -309,7 +316,7 @@ private fun categoryLabel(lang: String, category: String): String = when (catego
 }
 
 @Composable
-fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit, onOpenMenu: () -> Unit) {
+fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
     var title by remember { mutableStateOf("") }
@@ -324,7 +331,7 @@ fun RoutinesScreen(vm: SettingsViewModel, onExactAlarm: () -> Unit, onOpenMenu: 
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        DastyarTopBar(stringResource(R.string.routines_title), navigation = { MenuNavigation(onOpenMenu) })
+        DastyarTopBar(stringResource(R.string.routines_title), navigation = { BackNavigation(onBack) })
         if (state.routines.isEmpty()) {
             EmptyState(
                 icon = Icons.Outlined.Schedule,

@@ -73,7 +73,22 @@ enum class VoiceHint { None, InstallTts, MicSettings, NoRecognizer }
 
 enum class ProviderVoiceNote { None, Spoken, Transcribed }
 
-enum class ListenError { NoRecognizer, Permission, Network, NoMatch, Unavailable, Unknown }
+enum class ListenError {
+    NoRecognizer,
+    Permission,
+    Network,
+    NoMatch,
+    Unavailable,
+    Unknown,
+    Client,
+    Busy,
+    Server,
+    Language,
+    Audio,
+    MissingKey,
+    Unauthorized,
+    Unsupported,
+}
 
 enum class SpeakOutcome { Spoken, MissingVoice, Failed, Empty, Stopped }
 

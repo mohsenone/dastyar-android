@@ -37,6 +37,27 @@ class ProviderAudioPolicyTest {
     }
 
     @Test
+    fun groqAndOpenAiCanTranscribeAndOtherHostsCannot() {
+        assertEquals(AudioHope.KnownYes, ProviderAudioPolicy.transcriptionRoute(ProviderKinds.GROQ, "https://api.groq.com/openai/v1"))
+        assertEquals(AudioHope.KnownYes, ProviderAudioPolicy.transcriptionRoute(ProviderKinds.OPENAI, "https://api.openai.com/v1"))
+        assertEquals(AudioHope.Probe, ProviderAudioPolicy.transcriptionRoute(ProviderKinds.CUSTOM, "https://llm.example/v1"))
+        assertEquals(AudioHope.Probe, ProviderAudioPolicy.transcriptionRoute(ProviderKinds.OPENAI, "https://proxy.example/v1"))
+        assertEquals(AudioHope.KnownNo, ProviderAudioPolicy.transcriptionRoute(ProviderKinds.GEMINI, "https://generativelanguage.googleapis.com/v1beta"))
+        assertEquals(AudioHope.KnownNo, ProviderAudioPolicy.transcriptionRoute(ProviderKinds.OPENROUTER, "https://openrouter.ai/api/v1"))
+        assertEquals(AudioHope.KnownNo, ProviderAudioPolicy.transcriptionRoute(ProviderKinds.ANTHROPIC, "https://api.anthropic.com"))
+        assertEquals(AudioHope.KnownYes, ProviderAudioPolicy.transcriptionRoute(ProviderKinds.CUSTOM, "https://api.groq.com/openai/v1"))
+        assertTrue(ProviderAudioPolicy.shouldTranscribe(true, AudioHope.KnownYes, true))
+        assertFalse(ProviderAudioPolicy.shouldTranscribe(false, AudioHope.KnownYes, false))
+        assertTrue(ProviderAudioPolicy.shouldTranscribe(true, AudioHope.Probe, false))
+        assertFalse(ProviderAudioPolicy.shouldTranscribe(true, AudioHope.Probe, true))
+        assertFalse(ProviderAudioPolicy.shouldTranscribe(true, AudioHope.KnownNo, false))
+        assertEquals("whisper-large-v3-turbo", ProviderAudioPolicy.transcriptionModel(ProviderKinds.GROQ, "https://api.groq.com/openai/v1"))
+        assertEquals("whisper-1", ProviderAudioPolicy.transcriptionModel(ProviderKinds.OPENAI, "https://api.openai.com/v1"))
+        assertEquals("whisper-1", ProviderAudioPolicy.transcriptionModel(ProviderKinds.CUSTOM, "https://llm.example/v1"))
+        assertEquals(AudioHope.KnownNo, ProviderAudioPolicy.route(ProviderKinds.GROQ, "https://api.groq.com/openai/v1"))
+    }
+
+    @Test
     fun audioUrlsStayOnTheConfiguredBase() {
         assertEquals(
             "https://api.openai.com/v1/audio/speech",

@@ -40,6 +40,7 @@ import app.dastyar.agent.ui.PrimaryButton
 import app.dastyar.agent.ui.Space
 import app.dastyar.agent.voice.ListenError
 import app.dastyar.agent.voice.ProviderVoiceNote
+import app.dastyar.agent.voice.SpeechErrors
 import app.dastyar.agent.voice.VoiceHint
 import app.dastyar.agent.voice.VoicePhase
 
@@ -51,9 +52,12 @@ fun VoiceStage(
     note: ProviderVoiceNote,
     listenError: ListenError?,
     persianVoice: Boolean,
+    persianUi: Boolean,
+    pathLabel: String = "",
     onStop: () -> Unit,
     onClose: () -> Unit,
     onHint: () -> Unit,
+    onRetry: () -> Unit = onStop,
     onOpenChat: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -91,6 +95,14 @@ fun VoiceStage(
                         textAlign = TextAlign.Center,
                     )
                 }
+                if (pathLabel.isNotBlank() && (phase == VoicePhase.Listening || phase == VoicePhase.Processing)) {
+                    Text(
+                        pathLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 if (liveText.isNotBlank()) {
                     Text(
                         liveText,
@@ -114,7 +126,7 @@ fun VoiceStage(
                         textAlign = TextAlign.Center,
                     )
                 }
-                val hintText = hintText(hint, listenError, persianVoice)
+                val hintText = hintText(hint, listenError, persianVoice, persianUi)
                 if (hintText != null) {
                     Text(
                         hintText,
@@ -130,9 +142,16 @@ fun VoiceStage(
                 if (onOpenChat != null) {
                     PrimaryButton(stringResource(R.string.voice_open_chat), onOpenChat, modifier = Modifier.fillMaxWidth())
                 }
+                if (phase == VoicePhase.Error) {
+                    PrimaryButton(
+                        text = stringResource(R.string.voice_retry),
+                        onClick = onRetry,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    )
+                }
                 PrimaryButton(
-                    text = stringResource(R.string.voice_stop),
-                    onClick = onStop,
+                    text = stringResource(if (phase == VoicePhase.Error) R.string.voice_dismiss else R.string.voice_stop),
+                    onClick = if (phase == VoicePhase.Error) onClose else onStop,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 )
             }
@@ -186,11 +205,11 @@ private fun phaseTitle(phase: VoicePhase): String = when (phase) {
 }
 
 @Composable
-private fun hintText(hint: VoiceHint, error: ListenError?, persianVoice: Boolean): String? = when (hint) {
+private fun hintText(hint: VoiceHint, error: ListenError?, persianVoice: Boolean, persianUi: Boolean): String? = when (hint) {
     VoiceHint.InstallTts -> stringResource(if (persianVoice) R.string.voice_missing_tts else R.string.voice_missing_tts_en)
-    VoiceHint.MicSettings -> stringResource(R.string.voice_permission)
-    VoiceHint.NoRecognizer -> stringResource(R.string.voice_no_recognizer)
-    VoiceHint.None -> error?.let { listenErrorText(it) }
+    VoiceHint.MicSettings -> error?.let { SpeechErrors.message(it, persianUi) } ?: stringResource(R.string.voice_permission)
+    VoiceHint.NoRecognizer -> error?.let { SpeechErrors.message(it, persianUi) } ?: stringResource(R.string.voice_no_recognizer)
+    VoiceHint.None -> error?.let { SpeechErrors.message(it, persianUi) }
 }
 
 @Composable
@@ -201,11 +220,4 @@ private fun hintAction(hint: VoiceHint): String? = when (hint) {
 }
 
 @Composable
-fun listenErrorText(error: ListenError): String = when (error) {
-    ListenError.NoRecognizer -> stringResource(R.string.voice_err_unavailable)
-    ListenError.Permission -> stringResource(R.string.voice_err_permission)
-    ListenError.Network -> stringResource(R.string.voice_err_network)
-    ListenError.NoMatch -> stringResource(R.string.voice_err_nomatch)
-    ListenError.Unavailable -> stringResource(R.string.voice_err_unavailable)
-    ListenError.Unknown -> stringResource(R.string.voice_err_unknown)
-}
+fun listenErrorText(error: ListenError, persianUi: Boolean): String = SpeechErrors.message(error, persianUi)

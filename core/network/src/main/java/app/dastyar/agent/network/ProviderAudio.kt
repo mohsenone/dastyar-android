@@ -10,10 +10,21 @@ import org.json.JSONObject
 
 enum class AudioHope { KnownYes, Probe, KnownNo }
 
+sealed class TranscribeOutcome {
+    data class Text(val value: String) : TranscribeOutcome()
+    data object MissingKey : TranscribeOutcome()
+    data object Unauthorized : TranscribeOutcome()
+    data object Unsupported : TranscribeOutcome()
+    data object Empty : TranscribeOutcome()
+    data object Failed : TranscribeOutcome()
+}
+
 /**
- * OpenAI's own host is treated as supporting the audio speech and transcription routes.
- * Groq, OpenRouter, Gemini, and the other built-in hosts are not.
+ * Speech (TTS) and transcription are not the same route.
+ * Official OpenAI is a known speech host. Groq is not assumed to speak.
+ * Transcription treats Groq and official OpenAI as known Whisper-style hosts.
  * A custom or non-official OpenAI-compatible base is only a probe.
+ * Gemini, OpenRouter, and the other built-in hosts are not assumed to transcribe.
  */
 object ProviderAudioPolicy {
     private val never = setOf(
@@ -46,6 +57,32 @@ object ProviderAudioPolicy {
             AudioHope.Probe -> !probeAlreadyFailed
             AudioHope.KnownNo -> false
         }
+    }
+
+    /** Whisper-style POST /v1/audio/transcriptions. Groq's compatible host is included. */
+    fun transcriptionRoute(kind: String, baseUrl: String): AudioHope {
+        val key = kind.trim().uppercase()
+        val host = hostOf(baseUrl)
+        if (key == ProviderKinds.GROQ || host == "api.groq.com") return AudioHope.KnownYes
+        if (key == ProviderKinds.OPENAI && host == "api.openai.com") return AudioHope.KnownYes
+        if (key == ProviderKinds.OPENAI || key == ProviderKinds.CUSTOM) return AudioHope.Probe
+        return AudioHope.KnownNo
+    }
+
+    fun shouldTranscribe(hasKey: Boolean, route: AudioHope, probeAlreadyFailed: Boolean): Boolean {
+        if (!hasKey) return false
+        return when (route) {
+            AudioHope.KnownYes -> true
+            AudioHope.Probe -> !probeAlreadyFailed
+            AudioHope.KnownNo -> false
+        }
+    }
+
+    /** Groq rejects OpenAI's `whisper-1` id. Other compatible hosts keep that id. */
+    fun transcriptionModel(kind: String, baseUrl: String): String {
+        val key = kind.trim().uppercase()
+        val host = hostOf(baseUrl)
+        return if (key == ProviderKinds.GROQ || host == "api.groq.com") "whisper-large-v3-turbo" else "whisper-1"
     }
 
     fun hostOf(baseUrl: String): String {
@@ -101,11 +138,13 @@ class ProviderAudioClient @Inject constructor() {
         wav: ByteArray,
         language: String,
         extraHeaders: Map<String, String> = emptyMap(),
-    ): String? {
-        if (apiKey.isBlank() || wav.isEmpty()) return null
+        kind: String = "",
+    ): TranscribeOutcome {
+        if (apiKey.isBlank()) return TranscribeOutcome.MissingKey
+        if (wav.isEmpty()) return TranscribeOutcome.Empty
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("model", "whisper-1")
+            .addFormDataPart("model", ProviderAudioPolicy.transcriptionModel(kind, baseUrl))
             .addFormDataPart("language", language.take(8))
             .addFormDataPart("file", "speech.wav", wav.toRequestBody("audio/wav".toMediaType()))
             .build()
@@ -116,10 +155,17 @@ class ProviderAudioClient @Inject constructor() {
         return runCatching {
             Net.client.newCall(builder.build()).execute().use { response ->
                 val raw = response.body?.string().orEmpty()
-                if (!response.isSuccessful) return null
-                JSONObject(raw).optString("text").trim().takeIf { it.isNotBlank() }
+                when (response.code) {
+                    401, 403 -> return TranscribeOutcome.Unauthorized
+                    404, 405, 501 -> return TranscribeOutcome.Unsupported
+                }
+                if (!response.isSuccessful) {
+                    return if (response.code in 400..499) TranscribeOutcome.Unsupported else TranscribeOutcome.Failed
+                }
+                val text = runCatching { JSONObject(raw).optString("text") }.getOrDefault("").trim()
+                if (text.isBlank()) TranscribeOutcome.Empty else TranscribeOutcome.Text(text)
             }
-        }.getOrNull()
+        }.getOrDefault(TranscribeOutcome.Failed)
     }
 
     private fun headers(apiKey: String, extraHeaders: Map<String, String>): Map<String, String> {

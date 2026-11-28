@@ -60,6 +60,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -76,7 +77,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -119,12 +119,15 @@ import app.dastyar.agent.ui.dastyarBackdrop
 import app.dastyar.agent.ui.t
 import app.dastyar.agent.voice.AssistantRole
 import app.dastyar.agent.voice.AssistantTarget
-import app.dastyar.agent.voice.VoicePhase
+import app.dastyar.agent.voice.MicAccessRules
+import app.dastyar.agent.voice.VoiceDiagnosticsCopy
+import app.dastyar.agent.voice.VoiceDiagnosticsReader
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -135,6 +138,7 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var auth: BiometricAuthenticator
     @Inject lateinit var confirm: ConfirmationBus
     @Inject lateinit var settingsStore: SettingsStore
+    @Inject lateinit var voiceDiag: VoiceDiagnosticsReader
 
     private val chatVm: ChatViewModel by viewModels()
     private val settingsVm: SettingsViewModel by viewModels()
@@ -269,15 +273,27 @@ class MainActivity : AppCompatActivity() {
                 fun androidx.navigation.NavHostController.goMenu(dest: String) {
                     val target = AppRoutes.restoreOrHome(dest)
                     if (AppRoutes.base(currentDestination?.route) == AppRoutes.base(target)) return
-                    val startId = runCatching { graph.findStartDestination().id }.getOrNull()
                     runCatching {
                         navigate(target) {
-                            if (startId != null) popUpTo(startId) { saveState = false }
+                            popUpTo(AppRoutes.CHAT) {
+                                inclusive = AppRoutes.base(target) == AppRoutes.CHAT
+                                saveState = false
+                            }
                             launchSingleTop = true
                             restoreState = false
                         }
                     }
                 }
+                val up: () -> Unit = {
+                    if (!nav.popBackStack()) {
+                        nav.navigate(AppRoutes.CHAT) {
+                            popUpTo(nav.graph.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+                var chatsOpen by remember { mutableStateOf(false) }
+                var chatsClose by remember { mutableIntStateOf(0) }
                 val back by nav.currentBackStackEntryAsState()
                 val route = back?.destination?.route
                 val scope = rememberCoroutineScope()
@@ -296,6 +312,30 @@ class MainActivity : AppCompatActivity() {
                 var restrictedHelp by remember { mutableStateOf(false) }
                 var settingsHelp by remember { mutableStateOf(false) }
                 val epoch by ui.resumeEpoch.collectAsStateWithLifecycle()
+                val persianUi = lang.startsWith("fa")
+                var voiceDiagTitle by remember(persianUi) { mutableStateOf(VoiceDiagnosticsCopy.title(persianUi)) }
+                var voiceDiagLines by remember(persianUi) {
+                    mutableStateOf(listOf(VoiceDiagnosticsCopy.checking(persianUi)))
+                }
+                LaunchedEffect(epoch, persianUi) {
+                    voiceDiagTitle = VoiceDiagnosticsCopy.title(persianUi)
+                    val micPerm = Manifest.permission.RECORD_AUDIO
+                    val granted = ContextCompat.checkSelfPermission(this@MainActivity, micPerm) ==
+                        PackageManager.PERMISSION_GRANTED
+                    val rationale = ActivityCompat.shouldShowRequestPermissionRationale(this@MainActivity, micPerm)
+                    val askedBefore = rationale || PermissionMemory.isPermanent(micPerm)
+                    val mic = MicAccessRules.classify(granted, rationale, askedBefore)
+                    val base = voiceDiag.base(mic)
+                    voiceDiagLines = VoiceDiagnosticsCopy.lines(base, persianUi)
+                    val cancel = voiceDiag.enrichVoices(base) { ready ->
+                        voiceDiagLines = VoiceDiagnosticsCopy.lines(ready, persianUi)
+                    }
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        cancel()
+                    }
+                }
 
                 fun finishPerm(ok: Boolean) {
                     val reply = permReply.value ?: return
@@ -562,9 +602,11 @@ class MainActivity : AppCompatActivity() {
                                                 t(lang, "برای نشان دادن کار دستیار در پس‌زمینه اعلان لازم است.", "Notifications are how you see Dastyar working in the background."),
                                             )
                                         }
-                                        nav.navigate(if (providers) "providers" else "chat") {
+                                        nav.navigate(AppRoutes.CHAT) {
                                             popUpTo("onboarding") { inclusive = true }
+                                            launchSingleTop = true
                                         }
+                                        if (providers) nav.navigate(AppRoutes.PROVIDERS) { launchSingleTop = true }
                                     }
                                 },
                             )
@@ -611,17 +653,19 @@ class MainActivity : AppCompatActivity() {
                                 onOpenProviders = { nav.goMenu("providers") },
                                 onInstallTts = ::openTtsInstall,
                                 onMicSettings = ui::openAppSettings,
+                                onChatsDrawer = { chatsOpen = it },
+                                chatsCloseRequest = chatsClose,
                             )
                         }
-                        composable("providers") { ProvidersScreen(onOpenMenu = openMenu) }
+                        composable("providers") { ProvidersScreen(onBack = up) }
                         composable("connectors") {
                             ConnectorsScreen(
                                 onPermissions = { nav.navigate("permissions?onboarding=0") },
-                                onOpenMenu = openMenu,
+                                onBack = up,
                             )
                         }
                         composable("routines") {
-                            RoutinesScreen(settingsVm, onExactAlarm = ui::openExactAlarmSettings, onOpenMenu = openMenu)
+                            RoutinesScreen(settingsVm, onExactAlarm = ui::openExactAlarmSettings, onBack = up)
                         }
                         composable("settings") {
                             SettingsScreen(
@@ -638,9 +682,11 @@ class MainActivity : AppCompatActivity() {
                                 onPickFolder = {
                                     scope.launch { ui.pickDirectory() }
                                 },
-                                onOpenMenu = openMenu,
+                                onBack = up,
                                 assistantStatus = AssistantRole.status(assistantHeld, lang.startsWith("fa")),
                                 onSetAssistant = ::openAssistantSettings,
+                                voiceDiagnosticsTitle = voiceDiagTitle,
+                                voiceDiagnosticsLines = voiceDiagLines,
                             )
                         }
                         composable(
@@ -664,7 +710,11 @@ class MainActivity : AppCompatActivity() {
                                                 t(lang, "برای نشان دادن کار دستیار در پس‌زمینه اعلان لازم است.", "Notifications are how you see Dastyar working in the background."),
                                             )
                                         }
-                                        nav.navigate("providers") { popUpTo("onboarding") { inclusive = true } }
+                                        nav.navigate(AppRoutes.CHAT) {
+                                            popUpTo("onboarding") { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                        nav.navigate(AppRoutes.PROVIDERS) { launchSingleTop = true }
                                     }
                                 },
                                 onChat = {
@@ -791,14 +841,14 @@ class MainActivity : AppCompatActivity() {
                                         "battery" -> ui.openBatterySettings()
                                     }
                                 },
-                                onBack = { nav.popBackStack() },
+                                onBack = up,
                             )
                         }
                         composable("privacy") {
                             PrivacyScreen(
                                 lang = lang,
                                 safGranted = !settings.safTreeUri.isNullOrBlank(),
-                                onBack = { nav.popBackStack() },
+                                onBack = up,
                             )
                         }
                         composable("audit") {
@@ -808,17 +858,17 @@ class MainActivity : AppCompatActivity() {
                                     val uri = ui.createDocument("dastyar-audit.txt", "text/plain") ?: return@AuditScreen
                                     contentResolver.openOutputStream(Uri.parse(uri))?.use { it.write(text.toByteArray()) }
                                 },
-                                onBack = { nav.popBackStack() },
+                                onBack = up,
                             )
                         }
                         composable("memories") {
-                            MemoriesScreen(settingsVm, onBack = { nav.popBackStack() })
+                            MemoriesScreen(settingsVm, onBack = up)
                         }
                         composable("disclosure") {
                             DisclosureScreen(
                                 vm = settingsVm,
                                 onOpenSettings = ui::openAccessibilitySettings,
-                                onBack = { nav.popBackStack() },
+                                onBack = up,
                             )
                         }
                     }
@@ -922,10 +972,33 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             }
-                BackHandler(
-                    enabled = chatState.handsFree || chatState.voicePhase != VoicePhase.Idle || chatState.voiceHint != app.dastyar.agent.voice.VoiceHint.None,
-                ) {
-                    chatVm.stopVoice()
+                val voiceOpen = AppRoutes.voiceStageOpen(chatState.handsFree, chatState.voicePhase.name)
+                val overlayOpen = pending != null || perm != null || image != null || restrictedHelp || settingsHelp
+                val backAction = AppRoutes.backAction(
+                    menuDrawerOpen = drawerState.isOpen,
+                    chatsDrawerOpen = chatsOpen,
+                    voiceOpen = voiceOpen,
+                    overlayOpen = overlayOpen,
+                    route = route,
+                    canPop = nav.previousBackStackEntry != null,
+                )
+                BackHandler(enabled = AppRoutes.interceptsSystemBack(backAction)) {
+                    when (backAction) {
+                        BackAction.CloseDrawer -> {
+                            if (drawerState.isOpen) scope.launch { drawerState.close() } else chatsClose += 1
+                        }
+                        BackAction.CloseVoice -> chatVm.stopVoice()
+                        BackAction.CloseOverlay -> {
+                            pending?.let { confirm.answer(it.id, false) }
+                            image?.let { request -> runCatching { request.reply.complete(false) } }
+                            if (perm != null || restrictedHelp || settingsHelp) finishPerm(false)
+                        }
+                        BackAction.GoChat -> nav.navigate(AppRoutes.CHAT) {
+                            popUpTo(nav.graph.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                        BackAction.Pop, BackAction.FinishActivity -> Unit
+                    }
                 }
                 }
         }

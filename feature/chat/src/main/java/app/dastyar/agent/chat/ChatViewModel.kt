@@ -28,17 +28,25 @@ import app.dastyar.agent.network.ModelSource
 import app.dastyar.agent.network.ProviderAudioClient
 import app.dastyar.agent.network.ProviderAudioPolicy
 import app.dastyar.agent.network.ProviderKinds
+import app.dastyar.agent.network.TranscribeOutcome
 import app.dastyar.agent.ui.t
 import app.dastyar.agent.voice.ListenError
+import app.dastyar.agent.voice.ListenPath
 import app.dastyar.agent.voice.ProviderVoiceNote
 import app.dastyar.agent.voice.SpeakOutcome
 import app.dastyar.agent.voice.Speakable
+import app.dastyar.agent.voice.SpeechErrors
+import app.dastyar.agent.voice.TranscriptionCandidate
+import app.dastyar.agent.voice.TranscriptionChoice
 import app.dastyar.agent.voice.VoiceController
 import app.dastyar.agent.voice.VoiceGate
 import app.dastyar.agent.voice.VoiceGateDecision
 import app.dastyar.agent.voice.VoiceHint
 import app.dastyar.agent.voice.VoiceLang
 import app.dastyar.agent.voice.VoicePhase
+import app.dastyar.agent.voice.VoiceSnap
+import app.dastyar.agent.voice.VoiceSnapRules
+import kotlinx.coroutines.delay
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -70,6 +78,9 @@ data class ChatUi(
     val voiceReview: Boolean = false,
     val providerNote: ProviderVoiceNote = ProviderVoiceNote.None,
     val listenError: ListenError? = null,
+    val voiceBanner: String? = null,
+    val listenPath: ListenPath = ListenPath.Phone,
+    val pathProvider: String = "",
     val attachments: List<String> = emptyList(),
     val query: String = "",
     val wantVoice: Boolean = false,
@@ -105,6 +116,9 @@ class ChatViewModel @Inject constructor(
     private var loadGen: Int = 0
     private var voiceUiActive: Boolean = false
     private var audioProbeFailed: Boolean = false
+    private var voiceGen: Int = 0
+    private var autoRestarts: Int = 0
+    private var dismissJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -152,19 +166,23 @@ class ChatViewModel @Inject constructor(
     }
 
     fun newChat() {
+        stopVoice()
         viewModelScope.launch {
             val id = chats.createConversation("…")
             open(id)
         }
     }
 
-    fun setComposer(value: String) = _state.update { it.copy(composer = value) }
+    fun setComposer(value: String) = _state.update {
+        it.applyVoice(VoiceSnapRules.clearBanner(it.voiceSnap())).copy(composer = value)
+    }
 
     fun attach(path: String) = _state.update { it.copy(attachments = it.attachments + path) }
 
     fun clearError() = _state.update { it.copy(error = null, suggestProxy = false) }
 
     fun acceptShare(text: String, imagePath: String?) {
+        stopVoice()
         viewModelScope.launch {
             val id = chats.createConversation(text.trim().take(48).ifBlank { "…" })
             open(id)
@@ -210,6 +228,8 @@ class ChatViewModel @Inject constructor(
                     voiceReview = false,
                     voiceLive = "",
                     listenError = null,
+                    voiceBanner = null,
+                    voiceHint = VoiceHint.None,
                     voicePhase = if (speakAfter) VoicePhase.Processing else VoicePhase.Idle,
                     providerNote = ProviderVoiceNote.None,
                 )
@@ -220,15 +240,20 @@ class ChatViewModel @Inject constructor(
                     when (event) {
                         is AgentEvent.Token -> _state.update { it.copy(draft = it.draft + event.text) }
                         is AgentEvent.DraftCleared -> _state.update { it.copy(draft = "") }
-                        is AgentEvent.Failed -> _state.update {
-                            it.copy(
-                                error = event.message,
-                                suggestProxy = event.suggestProxy,
-                                running = false,
-                                draft = "",
-                                voicePhase = if (speakAfter) VoicePhase.Error else it.voicePhase,
-                                handsFree = if (speakAfter) false else it.handsFree,
-                            )
+                        is AgentEvent.Failed -> {
+                            _state.update {
+                                it.copy(
+                                    error = event.message,
+                                    suggestProxy = event.suggestProxy,
+                                    running = false,
+                                    draft = "",
+                                    voicePhase = if (speakAfter) VoicePhase.Error else it.voicePhase,
+                                    handsFree = if (speakAfter) false else it.handsFree,
+                                    voiceBanner = if (speakAfter) event.message else it.voiceBanner,
+                                    listenError = if (speakAfter) ListenError.Unknown else it.listenError,
+                                )
+                            }
+                            if (speakAfter) scheduleDismiss()
                         }
                         is AgentEvent.Completed -> {
                             _state.update { it.copy(running = false, draft = "") }
@@ -251,11 +276,38 @@ class ChatViewModel @Inject constructor(
 
     fun requestVoice() = startHandsFree()
 
-    fun startOneShot() = _state.update { it.copy(wantVoice = true, handsFree = false, voiceHint = VoiceHint.None) }
+    fun startOneShot() {
+        autoRestarts = 0
+        _state.update {
+            it.applyVoice(VoiceSnapRules.onRetry(it.voiceSnap())).copy(wantVoice = true, handsFree = false)
+        }
+    }
 
-    fun startHandsFree() = _state.update { it.copy(wantVoice = true, handsFree = true, voiceHint = VoiceHint.None) }
+    fun startHandsFree() {
+        autoRestarts = 0
+        _state.update {
+            it.applyVoice(VoiceSnapRules.onRetry(it.voiceSnap())).copy(wantVoice = true, handsFree = true)
+        }
+    }
+
+    fun retryVoice() {
+        if (_state.value.handsFree) startHandsFree() else startOneShot()
+    }
 
     fun consumeWantVoice() = _state.update { it.copy(wantVoice = false) }
+
+    fun dismissVoiceBanner() = _state.update { it.applyVoice(VoiceSnapRules.clearBanner(it.voiceSnap())) }
+
+    fun dismissVoiceError() {
+        val gen = voiceGen
+        val next = VoiceSnapRules.dismiss(_state.value.voiceSnap())
+        _state.update { it.applyVoice(next) }
+        if (gen != voiceGen) return
+        if (VoiceSnapRules.shouldRestart(next, autoRestarts) && voiceUiActive) {
+            autoRestarts++
+            listenNow()
+        }
+    }
 
     fun setVoiceUiActive(active: Boolean) {
         voiceUiActive = active
@@ -264,15 +316,7 @@ class ChatViewModel @Inject constructor(
 
     fun onMicDenied() {
         voice.stopListening()
-        _state.update {
-            it.copy(
-                listening = false,
-                handsFree = false,
-                voicePhase = VoicePhase.Error,
-                voiceHint = VoiceHint.MicSettings,
-                listenError = ListenError.Permission,
-            )
-        }
+        presentError(ListenError.Permission)
     }
 
     fun onMicGranted() {
@@ -280,7 +324,10 @@ class ChatViewModel @Inject constructor(
             stopVoice()
             return
         }
-        _state.update { it.copy(voiceHint = VoiceHint.None, listenError = null, providerNote = ProviderVoiceNote.None) }
+        autoRestarts = 0
+        _state.update {
+            it.applyVoice(VoiceSnapRules.onRetry(it.voiceSnap())).copy(providerNote = ProviderVoiceNote.None)
+        }
         val gate = VoiceGate.decision(
             userStarted = true,
             granted = true,
@@ -294,30 +341,21 @@ class ChatViewModel @Inject constructor(
     }
 
     fun stopVoice() {
+        voiceGen++
+        autoRestarts = 0
+        dismissJob?.cancel()
         voice.stopListening()
         voice.stopRecording()
         voice.stopSpeaking()
         _state.update {
-            it.copy(
-                handsFree = false,
-                listening = false,
-                voicePhase = VoicePhase.Idle,
-                voiceReview = false,
-                voiceLive = "",
-                wantVoice = false,
-            )
+            it.applyVoice(VoiceSnapRules.onLeave(it.voiceSnap())).copy(wantVoice = false)
         }
     }
 
     fun speakMessage(text: String) {
         viewModelScope.launch {
-            _state.update { it.copy(handsFree = false, voicePhase = VoicePhase.Speaking) }
-            val outcome = deliverSpeech(text, continueLoop = false)
-            if (outcome != SpeakOutcome.Spoken && _state.value.providerNote != ProviderVoiceNote.Spoken) {
-                _state.update { it.copy(voicePhase = VoicePhase.Error) }
-            } else if (_state.value.voicePhase == VoicePhase.Speaking) {
-                _state.update { it.copy(voicePhase = VoicePhase.Idle) }
-            }
+            _state.update { it.copy(handsFree = false, voicePhase = VoicePhase.Speaking, voiceBanner = null, listenError = null, voiceHint = VoiceHint.None) }
+            deliverSpeech(text, continueLoop = false)
         }
     }
 
@@ -327,24 +365,31 @@ class ChatViewModel @Inject constructor(
             return
         }
         val snap = _state.value
+        val gen = voiceGen
         _state.update {
             it.copy(
                 listening = true,
                 voicePhase = VoicePhase.Listening,
                 listenError = null,
+                voiceBanner = null,
                 voiceHint = VoiceHint.None,
+                listenPath = if (voice.onlineComponent() != null) ListenPath.Phone else ListenPath.OnDevice,
+                pathProvider = "",
             )
         }
         voice.listen(
             choice = snap.voiceLang,
             appLang = snap.lang,
             onPartial = { partial ->
+                if (gen != voiceGen) return@listen
                 _state.update { state ->
                     if (state.handsFree) state.copy(voiceLive = partial) else state.copy(composer = partial, voiceLive = partial)
                 }
             },
             onResult = { text ->
-                _state.update { it.copy(listening = false, voiceLive = text) }
+                if (gen != voiceGen) return@listen
+                autoRestarts = 0
+                _state.update { it.applyVoice(VoiceSnapRules.onRecognized(it.voiceSnap())).copy(voiceLive = text) }
                 if (_state.value.handsFree) {
                     _state.update { it.copy(composer = text, voicePhase = VoicePhase.Processing) }
                     sendInternal(fromVoice = true)
@@ -360,76 +405,99 @@ class ChatViewModel @Inject constructor(
                 }
             },
             onError = { err ->
-                _state.update {
-                    it.copy(
-                        listening = false,
-                        voicePhase = VoicePhase.Error,
-                        listenError = err,
-                        handsFree = false,
-                        voiceHint = if (err == ListenError.Permission) VoiceHint.MicSettings else VoiceHint.None,
-                    )
+                if (gen != voiceGen) return@listen
+                if (err == ListenError.NoRecognizer || err == ListenError.Client || err == ListenError.Server || err == ListenError.Language || err == ListenError.Unavailable) {
+                    viewModelScope.launch { if (gen == voiceGen) transcribeWithProviderOrHint(err) }
+                } else {
+                    presentError(err)
                 }
             },
         )
     }
 
-    private suspend fun transcribeWithProviderOrHint() {
-        val profile = activeProfile()
-        val route = profile?.let { ProviderAudioPolicy.route(it.kind, it.baseUrl) } ?: AudioHope.KnownNo
-        if (profile == null || profile.apiKey.isBlank() || !ProviderAudioPolicy.shouldTry(true, route, audioProbeFailed)) {
-            _state.update {
-                it.copy(
-                    voicePhase = VoicePhase.Error,
-                    voiceHint = VoiceHint.NoRecognizer,
-                    listenError = ListenError.NoRecognizer,
-                    handsFree = false,
-                    providerNote = ProviderVoiceNote.None,
-                )
+    private suspend fun transcribeWithProviderOrHint(fallbackFrom: ListenError = ListenError.NoRecognizer) {
+        val gen = voiceGen
+        val loaded = loadProfiles()
+        val chosen = transcriptionCandidates(loaded)
+        if (chosen.isEmpty()) {
+            val error = when {
+                loaded.any { it.apiKey.isNotBlank() } -> ListenError.Unsupported
+                else -> ListenError.MissingKey
             }
+            presentError(if (fallbackFrom == ListenError.Permission) fallbackFrom else error)
             return
         }
-        _state.update { it.copy(voicePhase = VoicePhase.Listening, providerNote = ProviderVoiceNote.Transcribed, listening = true) }
+        val first = chosen.first()
+        _state.update {
+            it.copy(
+                voicePhase = VoicePhase.Listening,
+                providerNote = ProviderVoiceNote.Transcribed,
+                listening = true,
+                listenPath = ListenPath.Provider,
+                pathProvider = first.label,
+                listenError = null,
+                voiceBanner = null,
+                voiceHint = VoiceHint.None,
+            )
+        }
         val wav = withContext(Dispatchers.IO) { voice.recordWav() }
-        if (!_state.value.handsFree && _state.value.voicePhase != VoicePhase.Listening) return
+        if (gen != voiceGen) return
+        if (_state.value.voicePhase != VoicePhase.Listening && !_state.value.handsFree) return
         if (wav == null) {
-            if (route == AudioHope.Probe) audioProbeFailed = true
-            _state.update {
-                it.copy(
-                    listening = false,
-                    voicePhase = VoicePhase.Error,
-                    voiceHint = VoiceHint.NoRecognizer,
-                    listenError = ListenError.NoRecognizer,
-                    handsFree = false,
-                    providerNote = ProviderVoiceNote.None,
-                )
-            }
+            presentError(ListenError.Audio)
             return
         }
         val lang = VoiceLang.resolved(_state.value.voiceLang, _state.value.lang)
-        val text = withContext(Dispatchers.IO) {
-            audio.transcribe(profile.baseUrl, profile.apiKey, wav, lang, profile.extraHeaders)
-        }
-        if (text.isNullOrBlank()) {
-            if (route == AudioHope.Probe) audioProbeFailed = true
-            _state.update {
-                it.copy(
-                    listening = false,
-                    voicePhase = VoicePhase.Error,
-                    voiceHint = VoiceHint.NoRecognizer,
-                    listenError = ListenError.NoRecognizer,
-                    handsFree = false,
-                    providerNote = ProviderVoiceNote.None,
+        var lastError = ListenError.Unsupported
+        for (candidate in chosen) {
+            if (gen != voiceGen) return
+            _state.update { it.copy(pathProvider = candidate.label, listenPath = ListenPath.Provider) }
+            val route = ProviderAudioPolicy.transcriptionRoute(candidate.kind, candidate.baseUrl)
+            val outcome = withContext(Dispatchers.IO) {
+                audio.transcribe(
+                    candidate.baseUrl,
+                    candidate.apiKey,
+                    wav,
+                    lang,
+                    candidate.extraHeaders,
+                    candidate.kind,
                 )
             }
-            return
+            if (gen != voiceGen) return
+            when (outcome) {
+                is TranscribeOutcome.Text -> {
+                    autoRestarts = 0
+                    _state.update {
+                        it.applyVoice(VoiceSnapRules.onRecognized(it.voiceSnap()))
+                            .copy(voiceLive = outcome.value, providerNote = ProviderVoiceNote.Transcribed, pathProvider = candidate.label)
+                    }
+                    if (_state.value.handsFree) {
+                        _state.update { it.copy(composer = outcome.value, voicePhase = VoicePhase.Processing) }
+                        sendInternal(fromVoice = true)
+                    } else {
+                        _state.update {
+                            it.copy(composer = outcome.value, voicePhase = VoicePhase.Idle, voiceReview = true, voiceLive = "")
+                        }
+                    }
+                    return
+                }
+                TranscribeOutcome.Unauthorized -> {
+                    presentError(ListenError.Unauthorized)
+                    return
+                }
+                TranscribeOutcome.MissingKey -> lastError = ListenError.MissingKey
+                TranscribeOutcome.Unsupported -> {
+                    if (route == AudioHope.Probe) audioProbeFailed = true
+                    lastError = ListenError.Unsupported
+                }
+                TranscribeOutcome.Empty -> lastError = ListenError.NoMatch
+                TranscribeOutcome.Failed -> {
+                    if (route == AudioHope.Probe) audioProbeFailed = true
+                    lastError = ListenError.Unavailable
+                }
+            }
         }
-        _state.update { it.copy(listening = false, voiceLive = text, providerNote = ProviderVoiceNote.Transcribed) }
-        if (_state.value.handsFree) {
-            _state.update { it.copy(composer = text, voicePhase = VoicePhase.Processing) }
-            sendInternal(fromVoice = true)
-        } else {
-            _state.update { it.copy(composer = text, voicePhase = VoicePhase.Idle, voiceReview = true, voiceLive = "") }
-        }
+        presentError(lastError)
     }
 
     private suspend fun speakVisibleReply() {
@@ -479,22 +547,94 @@ class ChatViewModel @Inject constructor(
         }
         if (outcome == SpeakOutcome.Stopped) return outcome
         if (outcome == SpeakOutcome.Spoken) {
+            _state.update { it.applyVoice(VoiceSnapRules.onSpoken(it.voiceSnap())) }
             if (continueLoop && _state.value.handsFree && voiceUiActive && !_state.value.running) {
                 listenNow()
-            } else {
+            } else if (_state.value.voicePhase == VoicePhase.Speaking) {
                 _state.update { it.copy(voicePhase = VoicePhase.Idle) }
             }
             return outcome
         }
-        _state.update {
-            it.copy(
-                voicePhase = VoicePhase.Error,
-                handsFree = false,
-                voiceHint = if (outcome == SpeakOutcome.MissingVoice) VoiceHint.InstallTts else it.voiceHint,
-            )
-        }
+        if (outcome == SpeakOutcome.MissingVoice) presentMissingVoice() else presentError(ListenError.Unavailable)
         return outcome
     }
+
+    private fun presentError(error: ListenError) {
+        val persian = _state.value.lang.startsWith("fa")
+        _state.update { it.applyVoice(VoiceSnapRules.showError(it.voiceSnap(), error, persian)) }
+        scheduleDismiss()
+    }
+
+    private fun presentMissingVoice() {
+        val persian = _state.value.lang.startsWith("fa")
+        _state.update { it.applyVoice(VoiceSnapRules.showMissingVoice(it.voiceSnap(), persian)) }
+        scheduleDismiss()
+    }
+
+    private fun scheduleDismiss() {
+        dismissJob?.cancel()
+        val gen = voiceGen
+        dismissJob = viewModelScope.launch {
+            delay(SpeechErrors.DISMISS_AFTER_MS)
+            if (gen == voiceGen) dismissVoiceError()
+        }
+    }
+
+    private suspend fun loadProfiles(): List<ReadyVoiceProfile> =
+        _state.value.providers.mapNotNull { entity ->
+            val profile = providers.profile(entity.id) ?: return@mapNotNull null
+            ReadyVoiceProfile(
+                id = profile.id,
+                kind = profile.kind,
+                baseUrl = profile.baseUrl,
+                label = profile.label.ifBlank { entity.kind },
+                apiKey = profile.apiKey,
+                extraHeaders = profile.extraHeaders,
+            )
+        }
+
+    private fun transcriptionCandidates(loaded: List<ReadyVoiceProfile>): List<ReadyVoiceProfile> {
+        val snap = _state.value
+        val conv = snap.conversations.firstOrNull { it.id == snap.activeId }
+        val activeId = conv?.providerId?.takeIf { it.isNotBlank() }
+        val ordered = TranscriptionChoice.ordered(
+            activeId,
+            loaded.map { TranscriptionCandidate(it.id, it.kind, it.baseUrl, it.apiKey.isNotBlank(), it.label) },
+        ) { row ->
+            val route = ProviderAudioPolicy.transcriptionRoute(row.kind, row.baseUrl)
+            ProviderAudioPolicy.shouldTranscribe(true, route, audioProbeFailed)
+        }
+        val byId = loaded.associateBy { it.id }
+        return ordered.mapNotNull { byId[it.id] }
+    }
+
+    private fun ChatUi.voiceSnap() = VoiceSnap(
+        phase = voicePhase,
+        handsFree = handsFree,
+        hint = voiceHint,
+        error = listenError,
+        banner = voiceBanner,
+        listening = listening,
+        review = voiceReview,
+        live = voiceLive,
+        note = providerNote,
+        path = listenPath,
+        pathProvider = pathProvider,
+    )
+
+    private fun ChatUi.applyVoice(s: VoiceSnap) = copy(
+        voicePhase = s.phase,
+        handsFree = s.handsFree,
+        voiceHint = s.hint,
+        listenError = s.error,
+        voiceBanner = s.banner,
+        listening = s.listening,
+        voiceReview = s.review,
+        voiceLive = s.live,
+        providerNote = s.note,
+        listenPath = s.path,
+        pathProvider = s.pathProvider,
+    )
 
     private suspend fun activeProfile(): ProviderProfile? {
         val snap = _state.value
@@ -753,6 +893,15 @@ class ChatViewModel @Inject constructor(
         super.onCleared()
     }
 }
+
+private data class ReadyVoiceProfile(
+    val id: String,
+    val kind: String,
+    val baseUrl: String,
+    val label: String,
+    val apiKey: String,
+    val extraHeaders: Map<String, String>,
+)
 
 private fun ModelCacheEntity.toCatalog(): CatalogModel = CatalogModel(
     id = modelId,

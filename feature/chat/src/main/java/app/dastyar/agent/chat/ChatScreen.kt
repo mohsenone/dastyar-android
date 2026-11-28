@@ -82,6 +82,7 @@ import app.dastyar.agent.ui.PrimaryButton
 import app.dastyar.agent.ui.Space
 import app.dastyar.agent.ui.StatusChip
 import app.dastyar.agent.ui.StatusTone
+import app.dastyar.agent.voice.ListenPathCopy
 import app.dastyar.agent.voice.VoiceHint
 import app.dastyar.agent.voice.VoiceLang
 import app.dastyar.agent.voice.VoicePhase
@@ -98,6 +99,8 @@ fun ChatScreen(
     onOpenMenu: () -> Unit,
     onInstallTts: () -> Unit,
     onMicSettings: () -> Unit,
+    onChatsDrawer: (Boolean) -> Unit = {},
+    chatsCloseRequest: Int = 0,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val drawer = rememberDrawerState(DrawerValue.Closed)
@@ -115,6 +118,12 @@ fun ChatScreen(
             vm.consumeWantVoice()
             if (ensureMic()) vm.onMicGranted() else vm.onMicDenied()
         }
+    }
+    LaunchedEffect(drawer.currentValue) {
+        onChatsDrawer(drawer.currentValue == DrawerValue.Open)
+    }
+    LaunchedEffect(chatsCloseRequest) {
+        if (chatsCloseRequest > 0 && drawer.currentValue != DrawerValue.Closed) drawer.close()
     }
     LaunchedEffect(state.messages.size, state.draft, state.running) {
         val last = state.messages.lastIndex + if (state.draft.isNotBlank() || state.running) 1 else 0
@@ -267,11 +276,8 @@ fun ChatScreen(
                 ComposerBar(state, vm, takePhoto, pickImage, scope)
             }
         }
-        val showStage = state.handsFree ||
-            state.voicePhase == VoicePhase.Speaking ||
-            state.voicePhase == VoicePhase.Processing ||
-            state.voiceHint != VoiceHint.None ||
-            (state.voicePhase == VoicePhase.Error && state.listenError != null)
+        val showStage = state.handsFree || state.voicePhase != VoicePhase.Idle
+        val persianUi = lang.startsWith("fa")
         if (showStage) {
             VoiceStage(
                 phase = state.voicePhase,
@@ -280,16 +286,32 @@ fun ChatScreen(
                 note = state.providerNote,
                 listenError = state.listenError,
                 persianVoice = persianVoice,
+                persianUi = persianUi,
+                pathLabel = ListenPathCopy.line(state.listenPath, state.pathProvider, persianUi),
                 onStop = vm::stopVoice,
-                onClose = vm::stopVoice,
+                onClose = {
+                    if (state.voicePhase == VoicePhase.Error) vm.dismissVoiceError() else vm.stopVoice()
+                },
+                onRetry = vm::retryVoice,
                 onHint = {
                     when (state.voiceHint) {
                         VoiceHint.InstallTts -> onInstallTts()
                         VoiceHint.MicSettings -> onMicSettings()
+                        VoiceHint.NoRecognizer -> onOpenProviders()
                         else -> Unit
                     }
                 },
             )
+        }
+        val voiceBanner = state.voiceBanner
+        if (!showStage && !voiceBanner.isNullOrBlank()) {
+            Box(Modifier.align(Alignment.BottomCenter).padding(Space.s16)) {
+                ErrorBanner(
+                    message = voiceBanner,
+                    action = stringResource(R.string.voice_dismiss),
+                    onAction = vm::dismissVoiceBanner,
+                )
+            }
         }
         if (state.pickerOpen) {
             ModelPickerSheet(

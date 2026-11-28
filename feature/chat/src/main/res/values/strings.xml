@@ -42,6 +42,8 @@
     <string name="voice_error">Voice paused</string>
     <string name="voice_close">Close</string>
     <string name="voice_stop">Stop</string>
+    <string name="voice_retry">Try again</string>
+    <string name="voice_dismiss">Dismiss</string>
     <string name="voice_open_chat">Continue in chat</string>
     <string name="voice_missing_tts">Persian speech is not installed. Install Google Text-to-speech and a Persian voice. The reply stays on screen.</string>
     <string name="voice_missing_tts_en">No matching voice is installed. Install a voice in the system text-to-speech settings. The reply stays on screen.</string>

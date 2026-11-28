@@ -23,6 +23,10 @@ On Android 13 and later, a sideloaded APK cannot turn on Accessibility, notifica
 
 Mail can still open in the Gmail app or another email app. WhatsApp opens through `wa.me`. Sending still asks you first. Version 0.2.0 also has an optional Google sign-in under Connectors; see below. It is not a fake login, and some scopes need Google’s own verification.
 
+## 0.6.1
+
+`versionCode` 9. Non-chat screens have an up arrow, and system Back returns to the previous screen or to Chat. It closes an open drawer or the voice stage before it leaves. A voice error stays a few seconds, then the stage returns to listening or a short banner you can dismiss. If this phone has no usable recognizer, a saved Groq or OpenAI key can transcribe a short recording. The stage says which path is on. Settings includes Voice diagnostics. Groq is not used to speak the reply, and there is no free voice plan. This build was not installed on a phone or an emulator. There is no `v0.6.1` tag yet.
+
 ## 0.6.0
 
 `versionCode` 8. The look is the same teal, clay, and paper, drawn tighter: a 48dp top bar (on Chat, no large wordmark), a quiet background wash, distinct chat bubbles, a welcome state, and a drawer with the same five destinations. Light and dark both use the brand palette. Persian stays on Vazirmatn and right to left.
@@ -85,7 +89,7 @@ The audit log in Settings can be filtered, exported, and deleted. It stores a sh
 
 ## Voice, memory, offline models
 
-Speech recognition and text-to-speech use the engines installed on the phone. Settings chooses Auto, Persian, or English. One tap of the mic fills the composer. Hands-free speaks the visible reply and keeps listening until you stop. If Persian speech data is missing, the reply stays as text and a button opens the system install-speech screen. English is not used as a silent stand-in for a missing Persian voice. A provider audio fallback, when it runs, uses the key you already saved and is labeled in the voice stage.
+Speech recognition and text-to-speech use the engines installed on the phone. Settings chooses Auto, Persian, or English, and a Voice diagnostics row shows whether a recognizer, a Persian voice, an English voice, and the microphone are available. One tap of the mic fills the composer. Hands-free speaks the visible reply and keeps listening until you stop. A voice error leaves after a few seconds. If Persian speech data is missing, the reply stays as text and a button opens the system install-speech screen. English is not used as a silent stand-in for a missing Persian voice. If the phone has no usable recognizer, a saved Groq key (`whisper-large-v3-turbo`) or an official OpenAI key can transcribe a short clip. A custom OpenAI-compatible base is tried only until it fails. The stage says whether it is listening with this phone or transcribing with your key. Gemini and OpenRouter are not assumed to transcribe, and Groq is not used to speak the reply.
 
 Conversations can be pinned, renamed, and searched. The chat bar opens the saved providers and that provider’s model list. Free models are first. Refresh asks the provider’s live catalog and keeps the last list if the network fails. Anthropic uses its models endpoint when the key can call it, and an offline list when it cannot. GitHub Models stays discontinued and is not fetched. Choosing a model applies to this chat. Save as app default does not rewrite chats that already stored their own model. Replies render headings, lists, links, inline code, and fenced code blocks with a language label. Tool calls sit in a card. A typing indicator shows while a reply is still empty. Saved facts are a list the model can read and write. This version does not bundle an embedding model or Gemini Nano / a GGUF file. Settings explains that, and you can still save facts by hand.
 

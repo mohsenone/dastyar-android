@@ -55,7 +55,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProvidersScreen(onOpenMenu: () -> Unit, vm: ProvidersViewModel = hiltViewModel()) {
+fun ProvidersScreen(onBack: () -> Unit, vm: ProvidersViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val lang = state.lang
     val context = LocalContext.current
@@ -63,7 +63,7 @@ fun ProvidersScreen(onOpenMenu: () -> Unit, vm: ProvidersViewModel = hiltViewMod
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        DastyarTopBar(t(lang, "ارائه‌دهندگان", "Providers"), navigation = { app.dastyar.agent.ui.MenuNavigation(onOpenMenu) })
+        DastyarTopBar(t(lang, "ارائه‌دهندگان", "Providers"), navigation = { app.dastyar.agent.ui.BackNavigation(onBack) })
         Text(
             t(lang, "کلید مال شماست و روی همین گوشی می‌ماند. دستیار هزینهٔ مدل را صورتحساب نمی‌کند.", "The key is yours and stays on this phone. Dastyar does not bill model usage."),
             style = MaterialTheme.typography.bodyMedium,

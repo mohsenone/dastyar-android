@@ -42,6 +42,8 @@
     <string name="voice_error">صدا متوقف شد</string>
     <string name="voice_close">بستن</string>
     <string name="voice_stop">توقف</string>
+    <string name="voice_retry">دوباره</string>
+    <string name="voice_dismiss">بستن</string>
     <string name="voice_open_chat">ادامه در گفتگو</string>
     <string name="voice_missing_tts">گفتار فارسی نصب نیست. گوگل متن‌به‌گفتار و بستهٔ صدای فارسی را نصب کنید. پاسخ روی صفحه می‌ماند.</string>
     <string name="voice_missing_tts_en">صدای مناسب نصب نیست. از تنظیمات متن‌به‌گفتار سیستم یک صدا نصب کنید. پاسخ روی صفحه می‌ماند.</string>

@@ -3,6 +3,8 @@ package app.dastyar.agent
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.service.voice.VoiceInteractionService
 import android.service.voice.VoiceInteractionSession
 import android.service.voice.VoiceInteractionSessionService
@@ -33,7 +35,10 @@ import app.dastyar.agent.data.Appearance
 import app.dastyar.agent.data.LocaleGate
 import app.dastyar.agent.ui.DastyarTheme
 import app.dastyar.agent.voice.ListenError
+import app.dastyar.agent.voice.ListenPath
+import app.dastyar.agent.voice.ListenPathCopy
 import app.dastyar.agent.voice.ProviderVoiceNote
+import app.dastyar.agent.voice.SpeechErrors
 import app.dastyar.agent.voice.VoiceController
 import app.dastyar.agent.voice.VoiceHint
 import app.dastyar.agent.voice.VoiceLang
@@ -76,6 +81,9 @@ class DastyarSession(
     private val error = mutableStateOf<ListenError?>(null)
     private var content: View? = null
     private var owner: SessionOwner? = null
+    private val main = Handler(Looper.getMainLooper())
+    private var dismiss: Runnable? = null
+    private var sessionRestarts = 0
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
@@ -84,12 +92,14 @@ class DastyarSession(
     }
 
     override fun onHide() {
+        clearDismiss()
         voice.stopListening()
         voice.stopRecording()
         super.onHide()
     }
 
     override fun onDestroy() {
+        clearDismiss()
         voice.stopListening()
         voice.stopRecording()
         owner?.destroy()
@@ -115,31 +125,50 @@ class DastyarSession(
         return view
     }
 
+    private fun clearDismiss() {
+        dismiss?.let { main.removeCallbacks(it) }
+        dismiss = null
+    }
+
+    private fun showSessionError(err: ListenError) {
+        phase.value = VoicePhase.Error
+        error.value = err
+        hint.value = SpeechErrors.hintFor(err)
+        clearDismiss()
+        val retry = !SpeechErrors.blocksAutoRestart(err) && sessionRestarts < SpeechErrors.MAX_AUTO_RESTARTS
+        val task = Runnable {
+            if (phase.value != VoicePhase.Error) return@Runnable
+            if (retry) {
+                sessionRestarts++
+                begin()
+            } else {
+                close()
+            }
+        }
+        dismiss = task
+        main.postDelayed(task, SpeechErrors.DISMISS_AFTER_MS)
+    }
+
     private fun begin() {
+        clearDismiss()
         live.value = ""
         error.value = null
+        hint.value = VoiceHint.None
         if (!micGranted()) {
-            phase.value = VoicePhase.Error
-            hint.value = VoiceHint.MicSettings
+            showSessionError(ListenError.Permission)
             return
         }
-        hint.value = VoiceHint.None
         phase.value = VoicePhase.Listening
         val appLang = AppLanguage.uiLang(Bootstrap.language(hostContext), Locale.getDefault().language)
         voice.listen(
             choice = VoiceLang.AUTO,
             appLang = appLang,
             onPartial = { text -> live.value = text },
-            onResult = { text -> handoff(text) },
-            onError = { err ->
-                phase.value = VoicePhase.Error
-                error.value = err
-                hint.value = when (err) {
-                    ListenError.Permission -> VoiceHint.MicSettings
-                    ListenError.NoRecognizer, ListenError.Unavailable -> VoiceHint.NoRecognizer
-                    else -> VoiceHint.None
-                }
+            onResult = { text ->
+                sessionRestarts = 0
+                handoff(text)
             },
+            onError = { err -> showSessionError(err) },
         )
     }
 
@@ -193,6 +222,7 @@ class DastyarSession(
             LocalLayoutDirection provides if (lang == AppLanguage.PERSIAN) LayoutDirection.Rtl else LayoutDirection.Ltr,
         ) {
             DastyarTheme(dark = dark, dynamicColor = LocaleGate.colorMode == Appearance.DYNAMIC) {
+                val persianUi = lang == AppLanguage.PERSIAN
                 VoiceStage(
                     phase = current,
                     liveText = said,
@@ -200,8 +230,18 @@ class DastyarSession(
                     note = ProviderVoiceNote.None,
                     listenError = shownError,
                     persianVoice = VoiceLang.resolved(VoiceLang.AUTO, lang) == VoiceLang.FA,
+                    persianUi = persianUi,
+                    pathLabel = if (current == VoicePhase.Listening) {
+                        ListenPathCopy.line(ListenPath.Phone, "", persianUi)
+                    } else {
+                        ""
+                    },
                     onStop = ::close,
                     onClose = ::close,
+                    onRetry = {
+                        sessionRestarts = 0
+                        begin()
+                    },
                     onHint = { openApp(MainActivity.ACTION_VOICE) },
                     onOpenChat = { openApp(MainActivity.ACTION_OPEN_CHAT) },
                 )
